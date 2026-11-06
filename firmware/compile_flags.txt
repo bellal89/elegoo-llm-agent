@@ -1,0 +1,5 @@
+-std=gnu++11
+-Wall
+-Wextra
+-Werror=switch
+-Icar
