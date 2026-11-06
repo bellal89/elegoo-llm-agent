@@ -6,3 +6,4 @@ docs/*-design.md
 docs/*-plan.md
 docs/Elegoo Smart Car V4.0_*.md
 docs/*.jpg
+firmware/test/build/
