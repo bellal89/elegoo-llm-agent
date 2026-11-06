@@ -1,0 +1,7 @@
+ELEGOO Smart Robot Car Kit*/
+.venv/
+host/profile.json
+.DS_Store
+docs/*-design.md
+docs/*-plan.md
+docs/Elegoo Smart Car V4.0_*.md
