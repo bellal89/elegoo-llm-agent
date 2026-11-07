@@ -1,3 +1,4 @@
+#include "button.h"
 #include "hw.h"
 #include "motion.h"
 #include "params.h"
@@ -7,6 +8,9 @@
 
 constexpr unsigned long kBaud = 9600;
 constexpr uint16_t kTeleOff = 0;
+// The hand must leave the car before the gyro bias starts.
+constexpr uint32_t kSelfTestDelayMs = 3000;
+constexpr uint32_t kBlinkMs = 250;
 
 constexpr const char* kOkKind = "ok";
 constexpr const char* kErrKind = "err";
@@ -27,6 +31,8 @@ uint32_t last_hb_ms = 0;
 uint16_t tele_period_ms = kTeleOff;
 uint32_t tele_ms = 0;
 uint8_t get_step = kGetIdle;
+Button button;
+bool self_test_active = false;
 
 // Blocks while the TX buffer is full. Use only for short frames: ok, err, done, p.
 void sendNow(const TxFrame& frame) { Serial.write(frame.text(), frame.length()); }
@@ -80,6 +86,7 @@ void reportEnded() {
   }
   sendNow(TxFrame(kDoneKind).add(cmdName(motion.lastCmd())).add(stopReasonName(motion.lastReason())));
   hw::led(endColor(motion.lastReason()));
+  self_test_active = false;
 }
 
 Sensors readSensors(uint32_t now_ms) {
@@ -98,6 +105,7 @@ Sensors readSensors(uint32_t now_ms) {
 void startMotion(const Cmd& cmd) {
   if (!motionAllowed(hw::battMv(), params)) {
     sendErr(ErrReason::Batt);
+    hw::led(LedColor::Red);
     return;
   }
   motion.start(cmd, millis(), hw::yawDeg());
@@ -117,6 +125,28 @@ void calibrateGyro() {
   } else {
     sendErr(ErrReason::Imu);
   }
+}
+
+void blinkUntilHandAway() {
+  uint32_t start_ms = millis();
+  while (millis() - start_ms < kSelfTestDelayMs) {
+    hw::led((millis() - start_ms) / kBlinkMs % 2 == 0 ? LedColor::Blue : LedColor::Off);
+  }
+}
+
+// Blocks for the delay and the gyro bias, then moves forward until a stop.
+void startSelfTest() {
+  motion.stop(StopReason::Cmd);
+  reportEnded();
+  blinkUntilHandAway();
+  hw::led(LedColor::Blue);
+  hw::gyroBias();
+  last_hb_ms = millis();
+  Cmd cmd = {};
+  cmd.type = CmdType::Move;
+  cmd.ms = static_cast<uint16_t>(params.get(Param::MaxCmdMs));
+  startMotion(cmd);
+  self_test_active = motion.active();
 }
 
 void handleCmd(const Cmd& cmd) {
@@ -229,6 +259,15 @@ void setup() {
 void loop() {
   readCommands();
   uint32_t now_ms = millis();
+  if (button.pressed(hw::buttonDown(), now_ms)) {
+    // now_ms is stale after the blocking start.
+    startSelfTest();
+    return;
+  }
+  // No host is connected during a self-test.
+  if (self_test_active) {
+    last_hb_ms = now_ms;
+  }
   hw::update(now_ms);
   hw::updateYaw();
   Sensors sensors = readSensors(now_ms);

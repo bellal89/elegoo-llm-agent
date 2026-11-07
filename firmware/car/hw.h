@@ -9,6 +9,7 @@ enum class LedColor : uint8_t {
   Blue,
   Green,
   Red,
+  Off,
 };
 
 namespace hw {
@@ -33,5 +34,6 @@ void updateYaw();
 float yawDeg();
 
 void led(LedColor color);
+bool buttonDown();
 
 }  // namespace hw
