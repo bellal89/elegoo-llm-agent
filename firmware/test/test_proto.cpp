@@ -139,6 +139,14 @@ static void testSetErrors() {
   CHECK(parseOne("{set,line_mask,0}").err == ErrReason::Range);
 }
 
+static void testIsHostCommand() {
+  CHECK(isHostCommand(CmdType::Hb));
+  CHECK(isHostCommand(CmdType::Drive));
+  CHECK(!isHostCommand(CmdType::BridgeStop));
+  CHECK(!isHostCommand(CmdType::Ignore));
+  CHECK(!isHostCommand(CmdType::Err));
+}
+
 int main() {
   testDrive();
   testMove();
@@ -151,5 +159,6 @@ int main() {
   testFrameLength();
   testBytesOutsideBraces();
   testSetErrors();
+  testIsHostCommand();
   return checkSummary("test_proto");
 }

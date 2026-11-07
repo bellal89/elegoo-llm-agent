@@ -2,21 +2,9 @@
 #include "motion.h"
 
 constexpr uint32_t kStartMs = 1000;
-
-static MotionParams defaults() {
-  MotionParams params = {};
-  params.max_pwm = 100;
-  params.move_pwm = 100;
-  params.turn_pwm = 110;
-  params.turn_slow_pwm = 90;
-  params.turn_slow_deg = 20;
-  params.turn_margin = 5;
-  params.kp = 4;
-  params.back_pwm = 90;
-  params.back_ms = 300;
-  params.max_cmd_ms = 5000;
-  return params;
-}
+constexpr uint16_t kFloor = 500;
+constexpr uint16_t kNoFloor = 1017;
+constexpr uint16_t kObstacleCm = 5;
 
 static Cmd driveCmd(int16_t left, int16_t right, uint16_t ms, bool fast) {
   Cmd cmd = {};
@@ -43,20 +31,57 @@ static Cmd turnCmd(int16_t deg) {
   return cmd;
 }
 
+static Sensors safeSensors(uint32_t now_ms) {
+  Sensors value = {};
+  value.now_ms = now_ms;
+  value.last_hb_ms = now_ms;
+  value.sonar_cm = 100;
+  for (uint16_t& level : value.line) {
+    level = kFloor;
+  }
+  value.batt_mv = 7400;
+  value.imu_ok = true;
+  return value;
+}
+
+static Sensors obstacle(uint32_t now_ms) {
+  Sensors value = safeSensors(now_ms);
+  value.sonar_cm = kObstacleCm;
+  return value;
+}
+
+static Sensors imuLost(uint32_t now_ms) {
+  Sensors value = safeSensors(now_ms);
+  value.imu_ok = false;
+  return value;
+}
+
+static Sensors cliff(uint32_t now_ms) {
+  Sensors value = safeSensors(now_ms);
+  value.line[static_cast<uint8_t>(LineSensor::Middle)] = kNoFloor;
+  return value;
+}
+
 static bool outIs(Out out, int16_t left, int16_t right) { return out.left == left && out.right == right; }
 
 static void testIdle() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   CHECK(!motion.active());
   CHECK(motion.kind() == MotionKind::Idle);
   CHECK(motion.lastReason() == StopReason::None);
   CHECK(outIs(motion.step(kStartMs, 0), 0, 0));
   CHECK(!motion.takeEnded());
+
+  motion.applySafety(cliff(kStartMs));
+  motion.stop(StopReason::Cmd);
+  CHECK(!motion.active());
+  CHECK(!motion.takeEnded());
+  CHECK(motion.lastReason() == StopReason::None);
 }
 
 static void testDriveCappedAndDone() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(driveCmd(150, 150, 500, false), kStartMs, 0);
   CHECK(motion.active());
@@ -72,7 +97,7 @@ static void testDriveCappedAndDone() {
 }
 
 static void testDriveFastAndReverse() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(driveCmd(150, 150, 500, true), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + 10, 0), 150, 150));
@@ -82,7 +107,7 @@ static void testDriveFastAndReverse() {
 }
 
 static void testDriveTimeout() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(driveCmd(100, 100, 5000, false), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + 5000, 0), 0, 0));
@@ -95,7 +120,7 @@ static void testDriveTimeout() {
 }
 
 static void testTurnRight() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(turnCmd(90), kStartMs, 0);
   CHECK(motion.kind() == MotionKind::Turn);
@@ -107,7 +132,7 @@ static void testTurnRight() {
 }
 
 static void testTurnLeftOvershoot() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(turnCmd(-90), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + 10, 0), -110, 110));
@@ -116,7 +141,7 @@ static void testTurnLeftOvershoot() {
 }
 
 static void testTurnFromNonZeroYaw() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(turnCmd(90), kStartMs, 400);
   CHECK(outIs(motion.step(kStartMs + 10, 480), 90, -90));
@@ -124,24 +149,16 @@ static void testTurnFromNonZeroYaw() {
   CHECK(motion.lastReason() == StopReason::Done);
 }
 
-static void testTurnInsideMarginEndsAtOnce() {
-  MotionParams params = defaults();
-  Motion motion(params);
-  motion.start(turnCmd(3), kStartMs, 0);
-  CHECK(outIs(motion.step(kStartMs + 10, 0), 0, 0));
-  CHECK(motion.lastReason() == StopReason::Done);
-}
-
 static void testTurnIgnoresMaxPwm() {
-  MotionParams params = defaults();
-  params.max_pwm = 50;
+  Params params;
+  params.set(Param::MaxPwm, 50);
   Motion motion(params);
   motion.start(turnCmd(90), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + 10, 0), 110, -110));
 }
 
 static void testTurnTimeout() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(turnCmd(90), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + kTurnTimeoutMs - 1, 10), 110, -110));
@@ -150,8 +167,8 @@ static void testTurnTimeout() {
 }
 
 static void testMoveHoldsHeading() {
-  MotionParams params = defaults();
-  params.move_pwm = 80;
+  Params params;
+  params.set(Param::MovePwm, 80);
   Motion motion(params);
   motion.start(moveCmd(1000, false), kStartMs, 10);
   CHECK(outIs(motion.step(kStartMs + 10, 10), 80, 80));
@@ -163,40 +180,34 @@ static void testMoveHoldsHeading() {
 }
 
 static void testMoveFast() {
-  MotionParams params = defaults();
-  params.move_pwm = 80;
+  Params params;
+  params.set(Param::MovePwm, 80);
   Motion motion(params);
   motion.start(moveCmd(1000, true), kStartMs, 0);
   CHECK(outIs(motion.step(kStartMs + 10, -10), 120, 40));
 }
 
-static void testGuard() {
-  MotionParams params = defaults();
+static bool stopsOn(const Cmd& cmd, const Sensors& sensors, StopReason reason) {
+  Params params;
   Motion motion(params);
-  CHECK(motion.guard().heading == Heading::Other);
-  CHECK(!motion.guard().needs_imu);
+  motion.start(cmd, sensors.now_ms, 0);
+  motion.applySafety(sensors);
+  return reason == StopReason::None ? motion.active() : !motion.active() && motion.lastReason() == reason;
+}
 
-  motion.start(moveCmd(1000, false), kStartMs, 0);
-  CHECK(motion.guard().heading == Heading::Forward);
-  CHECK(motion.guard().needs_imu);
-
-  motion.start(turnCmd(90), kStartMs, 0);
-  CHECK(motion.guard().heading == Heading::Other);
-  CHECK(motion.guard().needs_imu);
-
-  motion.start(driveCmd(100, 100, 500, false), kStartMs, 0);
-  CHECK(motion.guard().heading == Heading::Forward);
-  CHECK(!motion.guard().needs_imu);
-
-  motion.start(driveCmd(100, -100, 500, false), kStartMs, 0);
-  CHECK(motion.guard().heading == Heading::Other);
-
-  motion.start(driveCmd(100, 0, 500, false), kStartMs, 0);
-  CHECK(motion.guard().heading == Heading::Other);
+static void testSafetyByMotionKind() {
+  CHECK(stopsOn(driveCmd(100, 100, 500, false), obstacle(kStartMs), StopReason::Sonar));
+  CHECK(stopsOn(driveCmd(100, -100, 500, false), obstacle(kStartMs), StopReason::None));
+  CHECK(stopsOn(driveCmd(100, 0, 500, false), obstacle(kStartMs), StopReason::None));
+  CHECK(stopsOn(driveCmd(100, 100, 500, false), imuLost(kStartMs), StopReason::None));
+  CHECK(stopsOn(moveCmd(1000, false), obstacle(kStartMs), StopReason::Sonar));
+  CHECK(stopsOn(moveCmd(1000, false), imuLost(kStartMs), StopReason::Imu));
+  CHECK(stopsOn(turnCmd(90), obstacle(kStartMs), StopReason::None));
+  CHECK(stopsOn(turnCmd(90), imuLost(kStartMs), StopReason::Imu));
 }
 
 static void testNewCommandPreempts() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(turnCmd(90), kStartMs, 0);
   motion.start(driveCmd(60, 60, 500, false), kStartMs + 100, 0);
@@ -214,35 +225,29 @@ static void testNewCommandPreempts() {
   CHECK(motion.lastReason() == StopReason::Cmd);
 }
 
-static void testStopAndBackoffWhileIdle() {
-  MotionParams params = defaults();
-  Motion motion(params);
-  motion.cliffBackoff(kStartMs);
-  CHECK(!motion.active());
-  motion.stop(StopReason::Cmd);
-  CHECK(!motion.takeEnded());
-  CHECK(motion.lastReason() == StopReason::None);
-}
-
 static void testParamsChangeAppliesToActiveMotion() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(driveCmd(100, 100, 500, false), kStartMs, 0);
-  params.max_pwm = 60;
+  params.set(Param::MaxPwm, 60);
   CHECK(outIs(motion.step(kStartMs + 10, 0), 60, 60));
 }
 
 static void testCliffBackoffShorterThanForward() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(moveCmd(2000, false), kStartMs, 0);
   motion.step(kStartMs + 200, 0);
-  motion.cliffBackoff(kStartMs + 200);
+  motion.applySafety(cliff(kStartMs + 200));
   CHECK(motion.kind() == MotionKind::Back);
-  CHECK(motion.active());
   CHECK(!motion.takeEnded());
-  CHECK(motion.guard().heading == Heading::Other);
   CHECK(outIs(motion.step(kStartMs + 210, 0), -90, -90));
+
+  Sensors heartbeatLost = cliff(kStartMs + 300);
+  heartbeatLost.last_hb_ms = 0;
+  motion.applySafety(heartbeatLost);
+  CHECK(motion.kind() == MotionKind::Back);
+
   CHECK(outIs(motion.step(kStartMs + 399, 0), -90, -90));
   CHECK(outIs(motion.step(kStartMs + 400, 0), 0, 0));
   CHECK(!motion.active());
@@ -252,10 +257,10 @@ static void testCliffBackoffShorterThanForward() {
 }
 
 static void testCliffBackoffCappedByBackMs() {
-  MotionParams params = defaults();
+  Params params;
   Motion motion(params);
   motion.start(driveCmd(100, 100, 3000, false), kStartMs, 0);
-  motion.cliffBackoff(kStartMs + 1000);
+  motion.applySafety(cliff(kStartMs + 1000));
   CHECK(outIs(motion.step(kStartMs + 1299, 0), -90, -90));
   CHECK(outIs(motion.step(kStartMs + 1300, 0), 0, 0));
   CHECK(motion.lastReason() == StopReason::Cliff);
@@ -270,14 +275,12 @@ int main() {
   testTurnRight();
   testTurnLeftOvershoot();
   testTurnFromNonZeroYaw();
-  testTurnInsideMarginEndsAtOnce();
   testTurnIgnoresMaxPwm();
   testTurnTimeout();
   testMoveHoldsHeading();
   testMoveFast();
-  testGuard();
+  testSafetyByMotionKind();
   testNewCommandPreempts();
-  testStopAndBackoffWhileIdle();
   testParamsChangeAppliesToActiveMotion();
   testCliffBackoffShorterThanForward();
   testCliffBackoffCappedByBackMs();

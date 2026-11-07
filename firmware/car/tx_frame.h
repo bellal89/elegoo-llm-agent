@@ -23,6 +23,8 @@ class TxFrame {
 
  private:
   void append(const char* text);
+  // Appends "-" for a negative value. Returns the magnitude.
+  uint32_t appendSign(int32_t value);
   void appendUnsigned(uint32_t value);
 
   char text_[kTxFrameCapacity + 1] = {};

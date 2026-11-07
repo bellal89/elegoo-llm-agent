@@ -31,6 +31,8 @@ enum class ErrReason : uint8_t {
 };
 
 const char* cmdName(CmdType type);
+// False for bridge frames and invalid frames.
+bool isHostCommand(CmdType type);
 const char* errReasonName(ErrReason reason);
 
 struct Cmd {

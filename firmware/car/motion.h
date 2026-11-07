@@ -2,11 +2,11 @@
 
 #include <stdint.h>
 
+#include "params.h"
 #include "proto.h"
 #include "safety.h"
 
 constexpr uint16_t kTurnTimeoutMs = 3000;
-constexpr int16_t kFastPwmCap = 255;
 
 enum class MotionKind : uint8_t {
   Idle,
@@ -18,19 +18,6 @@ enum class MotionKind : uint8_t {
 
 const char* motionKindName(MotionKind kind);
 
-struct MotionParams {
-  int16_t max_pwm;
-  int16_t move_pwm;
-  int16_t turn_pwm;
-  int16_t turn_slow_pwm;
-  float turn_slow_deg;
-  float turn_margin;
-  float kp;
-  int16_t back_pwm;
-  uint16_t back_ms;
-  uint16_t max_cmd_ms;
-};
-
 struct Out {
   int16_t left;
   int16_t right;
@@ -40,17 +27,18 @@ struct Out {
 // takes effect at once, also for an active motion.
 class Motion {
  public:
-  explicit Motion(const MotionParams& params);
+  explicit Motion(const Params& params);
 
   // Accepts Drive, Move, Turn. An active motion ends first with StopReason::Cmd.
   void start(const Cmd& cmd, uint32_t now_ms, float yaw_deg);
   Out step(uint32_t now_ms, float yaw_deg);
   void stop(StopReason reason);
-  void cliffBackoff(uint32_t now_ms);
+  // Stops the motion on a safety stop; on a cliff, starts the back-off.
+  // Skips the check during the back-off: the car must back off the edge.
+  void applySafety(const Sensors& sensors);
 
   bool active() const;
   MotionKind kind() const;
-  Guard guard() const;
   // Command and reason of the last ended motion.
   CmdType lastCmd() const;
   StopReason lastReason() const;
@@ -58,14 +46,17 @@ class Motion {
   bool takeEnded();
 
  private:
+  Guard guard() const;
+  void cliffBackoff(uint32_t now_ms);
   void end(StopReason reason);
   Out stepTimed(uint32_t now_ms, Out out);
   Out stepMove(uint32_t now_ms, float yaw_deg);
   Out stepTurn(uint32_t now_ms, float yaw_deg);
   Out stepBack(uint32_t now_ms);
+  int16_t pwm(Param param) const;
   int16_t pwmCap() const;
 
-  const MotionParams& params_;
+  const Params& params_;
   MotionKind kind_ = MotionKind::Idle;
   Cmd cmd_ = {};
   uint32_t start_ms_ = 0;

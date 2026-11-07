@@ -219,7 +219,7 @@ uint16_t battMv() { return static_cast<uint16_t>(analogRead(kBattPin) * kBattVol
 
 bool imuOk() { return imu_ok; }
 
-bool gyroBias() {
+void gyroBias() {
   motors({0, 0});
   float sum = 0;
   uint32_t count = 0;
@@ -227,14 +227,13 @@ bool gyroBias() {
   while (millis() - start_ms < kGyroBiasMs) {
     float dps = 0;
     if (!gyroZdps(dps)) {
-      return false;
+      return;
     }
     sum += dps;
     ++count;
   }
   gyro_bias_dps = sum / count;
   yaw_us = micros();
-  return true;
 }
 
 void updateYaw() {

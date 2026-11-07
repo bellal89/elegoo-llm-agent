@@ -27,11 +27,7 @@ TxFrame& TxFrame::add(const char* text) {
 
 TxFrame& TxFrame::add(int32_t value) {
   append(kFieldSeparator);
-  if (value < 0) {
-    append("-");
-  }
-  // 0u - value is exact for INT32_MIN, where -value overflows.
-  appendUnsigned(value < 0 ? 0u - static_cast<uint32_t>(value) : static_cast<uint32_t>(value));
+  appendUnsigned(appendSign(value));
   return *this;
 }
 
@@ -45,10 +41,7 @@ TxFrame& TxFrame::add(float value) {
   float scaled = value * kFixedScale;
   int32_t rounded = static_cast<int32_t>(scaled < 0 ? scaled - kRoundHalf : scaled + kRoundHalf);
   append(kFieldSeparator);
-  if (rounded < 0) {
-    append("-");
-  }
-  uint32_t magnitude = rounded < 0 ? 0u - static_cast<uint32_t>(rounded) : static_cast<uint32_t>(rounded);
+  uint32_t magnitude = appendSign(rounded);
   uint32_t units = magnitude / static_cast<uint32_t>(kFixedScale);
   uint32_t fraction = magnitude % static_cast<uint32_t>(kFixedScale);
   appendUnsigned(units);
@@ -72,6 +65,15 @@ void TxFrame::append(const char* text) {
   memcpy(text_ + length_, text, text_len);
   length_ += text_len;
   strcpy(text_ + length_, kFrameEnd);
+}
+
+uint32_t TxFrame::appendSign(int32_t value) {
+  if (value >= 0) {
+    return static_cast<uint32_t>(value);
+  }
+  append("-");
+  // 0u - value is exact for INT32_MIN, where -value overflows.
+  return 0u - static_cast<uint32_t>(value);
 }
 
 void TxFrame::appendUnsigned(uint32_t value) {

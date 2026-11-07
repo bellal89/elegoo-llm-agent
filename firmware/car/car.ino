@@ -1,4 +1,3 @@
-#include "control.h"
 #include "hw.h"
 #include "motion.h"
 #include "params.h"
@@ -22,19 +21,12 @@ constexpr uint8_t kGetOkStep = kParamCount + 1;
 constexpr uint8_t kGetIdle = kParamCount + 2;
 
 Params params;
-MotionParams motion_params = {};
-Limits limits = {};
-Motion motion(motion_params);
+Motion motion(params);
 FrameReader reader;
 uint32_t last_hb_ms = 0;
 uint16_t tele_period_ms = kTeleOff;
 uint32_t tele_ms = 0;
 uint8_t get_step = kGetIdle;
-
-void applyParams() {
-  motion_params = motionParamsFrom(params);
-  limits = limitsFrom(params);
-}
 
 // Blocks while the TX buffer is full. Use only for short frames: ok, err, done, p.
 void sendNow(const TxFrame& frame) { Serial.write(frame.text(), frame.length()); }
@@ -104,12 +96,11 @@ Sensors readSensors(uint32_t now_ms) {
 }
 
 void startMotion(const Cmd& cmd) {
-  uint32_t now_ms = millis();
-  if (!motionAllowed(readSensors(now_ms), limits)) {
+  if (!motionAllowed(hw::battMv(), params)) {
     sendErr(ErrReason::Batt);
     return;
   }
-  motion.start(cmd, now_ms, hw::yawDeg());
+  motion.start(cmd, millis(), hw::yawDeg());
   // A preempted motion reports {done,<old>,cmd} before {ok,<new>}.
   reportEnded();
   sendOk(cmd.type);
@@ -119,9 +110,9 @@ void startMotion(const Cmd& cmd) {
 void calibrateGyro() {
   motion.stop(StopReason::Cmd);
   reportEnded();
-  bool bias_ok = hw::gyroBias();
+  hw::gyroBias();
   last_hb_ms = millis();
-  if (bias_ok) {
+  if (hw::imuOk()) {
     sendOk(CmdType::Gyro);
   } else {
     sendErr(ErrReason::Imu);
@@ -129,7 +120,7 @@ void calibrateGyro() {
 }
 
 void handleCmd(const Cmd& cmd) {
-  if (resetsHeartbeat(cmd.type)) {
+  if (isHostCommand(cmd.type)) {
     last_hb_ms = millis();
   }
   switch (cmd.type) {
@@ -172,7 +163,6 @@ void handleCmd(const Cmd& cmd) {
     case CmdType::Set:
       params.set(cmd.param, cmd.value);
       params.store(cmd.param);
-      applyParams();
       sendOk(CmdType::Set);
       break;
     case CmdType::Get:
@@ -226,10 +216,8 @@ void sendTelemetry(const Sensors& sensors) {
 void setup() {
   Serial.begin(kBaud);
   params.load();
-  applyParams();
   hw::begin();
   hw::led(LedColor::Blue);
-  // On failure imuOk() turns false; the imu frame below reports it.
   hw::gyroBias();
   for (uint8_t i = 0; i < kParamCount; ++i) {
     sendNow(paramFrame(static_cast<Param>(i)));
@@ -244,7 +232,7 @@ void loop() {
   hw::update(now_ms);
   hw::updateYaw();
   Sensors sensors = readSensors(now_ms);
-  checkMotionSafety(motion, sensors, limits);
+  motion.applySafety(sensors);
   hw::motors(motion.step(now_ms, hw::yawDeg()));
   reportEnded();
   sendNextGetReply();

@@ -25,8 +25,8 @@ uint16_t line(LineSensor sensor);
 uint16_t battMv();
 
 bool imuOk();
-// Blocks for 2 s with motors off. False if the IMU fails.
-bool gyroBias();
+// Blocks for 2 s with motors off. On an IMU failure, imuOk() turns false.
+void gyroBias();
 // Integrates gyro Z since the last call. Call each loop.
 void updateYaw();
 // Degrees, + = right, unbounded.

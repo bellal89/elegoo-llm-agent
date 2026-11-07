@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "params.h"
+
 enum class StopReason : uint8_t {
   None,
   Done,
@@ -33,15 +35,6 @@ struct Sensors {
   bool imu_ok;
 };
 
-struct Limits {
-  uint16_t hb_ms;
-  uint16_t sonar_stop_cm;
-  uint16_t cliff_th;
-  uint16_t batt_min_mv;
-  // Bit i enables the line sensor with LineSensor index i.
-  uint8_t line_mask;
-};
-
 enum class Heading : uint8_t {
   Forward,
   Other,
@@ -52,6 +45,5 @@ struct Guard {
   bool needs_imu;
 };
 
-// Call only while a motion is active.
-StopReason checkSafety(const Sensors& sensors, const Limits& limits, Guard guard);
-bool motionAllowed(const Sensors& sensors, const Limits& limits);
+StopReason checkSafety(const Sensors& sensors, const Params& params, Guard guard);
+bool motionAllowed(uint16_t batt_mv, const Params& params);

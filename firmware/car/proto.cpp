@@ -225,6 +225,15 @@ const char* cmdName(CmdType type) {
   return "";
 }
 
+bool isHostCommand(CmdType type) {
+  for (CmdType host : kHostCommands) {
+    if (host == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const char* errReasonName(ErrReason reason) {
   switch (reason) {
     case ErrReason::Frame:
