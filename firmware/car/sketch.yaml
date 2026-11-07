@@ -1,0 +1,9 @@
+profiles:
+  uno:
+    fqbn: arduino:avr:uno
+    platforms:
+      - platform: arduino:avr (1.8.8)
+    libraries:
+      - FastLED (3.10.9)
+      - Servo (1.3.0)
+default_profile: uno
