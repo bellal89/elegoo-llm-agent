@@ -16,6 +16,7 @@ lint:
 
 test:
 	$(MAKE) -C firmware/test
+	uv run pytest
 
 # firmware/car/sketch.yaml sets the board and the library versions.
 upload:
