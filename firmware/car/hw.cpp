@@ -47,7 +47,7 @@ constexpr uint8_t kImuGyroZReg = 0x47;
 constexpr uint8_t kImuGyroZBytes = 2;
 // Default full scale +-250 deg/s.
 constexpr float kImuLsbPerDps = 131;
-// The module is mounted Z up: raw Z is negative on a right turn (bench test).
+// The module is mounted Z up: raw Z is negative on a right turn (hardware test).
 constexpr float kGyroSign = -1;
 constexpr uint32_t kI2cTimeoutUs = 3000;
 // One byte plus ACK.

@@ -233,7 +233,7 @@ def check_heartbeat(link: Link, report: Report) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the wired part of the bench test.")
+    parser = argparse.ArgumentParser(description="Run the wired part of the hardware test.")
     parser.add_argument("--port", default=DEFAULT_PORT)
     port = parser.parse_args().port
 
