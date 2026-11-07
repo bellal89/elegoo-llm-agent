@@ -5,6 +5,7 @@ PORT := /dev/cu.usbserial-1110
 init:
 	uv python install
 	uv venv
+	git config core.hooksPath .githooks
 
 install:
 	uv sync --locked

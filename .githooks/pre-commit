@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+staged_py() { git diff --cached --name-only -z --diff-filter=ACMR -- '*.py'; }
+[ -z "$(staged_py)" ] && exit 0
+staged_py | xargs -0 tools/format.sh
+staged_py | xargs -0 git add
