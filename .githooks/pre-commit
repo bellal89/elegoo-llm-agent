@@ -2,5 +2,10 @@
 set -eu
 staged_py() { git diff --cached --name-only -z --diff-filter=ACMR -- '*.py'; }
 [ -z "$(staged_py)" ] && exit 0
+# The hook formats and stages whole files, so unstaged changes would go into the commit.
+if [ -n "$(staged_py | xargs -0 git diff --name-only --)" ]; then
+  echo "pre-commit: stage or stash the unstaged changes in the staged .py files" >&2
+  exit 1
+fi
 staged_py | xargs -0 tools/format.sh
 staged_py | xargs -0 git add
