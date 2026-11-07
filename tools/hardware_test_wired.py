@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["pyserial==3.5"]
-# ///
 import argparse
 import dataclasses
 import enum
@@ -138,7 +134,7 @@ class Link:
         try:
             kind = FrameKind(kind_text)
             reason = StopReason(args[DONE_REASON_ARG]) if kind is FrameKind.DONE else None
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             print(f"{time_s:7.2f} ! {line}")
             return None
         if kind is not FrameKind.TELE:

@@ -1,6 +1,21 @@
 PORT := /dev/cu.usbserial-1110
 
-.PHONY: upload hardware-test
+.PHONY: init install lint test upload hardware-test
+
+init:
+	uv python install
+	git config core.hooksPath .githooks
+
+install:
+	uv sync --locked
+
+lint:
+	uv run ruff check
+	uv run ruff format --check
+	uv run pyright
+
+test:
+	$(MAKE) -C firmware/test
 
 # firmware/car/sketch.yaml sets the board and the library versions.
 upload:
