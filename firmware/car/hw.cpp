@@ -48,6 +48,10 @@ constexpr float kImuLsbPerDps = 131;
 // The module is mounted Z up: raw Z is negative on a right turn (bench test).
 constexpr float kGyroSign = -1;
 constexpr uint32_t kI2cTimeoutUs = 3000;
+// One byte plus ACK.
+constexpr uint8_t kI2cRecoveryPulses = 9;
+// 100 kHz bus clock.
+constexpr unsigned int kI2cHalfPeriodUs = 5;
 constexpr uint32_t kGyroBiasMs = 2000;
 constexpr float kUsPerS = 1e6f;
 
@@ -95,7 +99,32 @@ bool gyroZdps(float& out) {
   return true;
 }
 
+void releaseLine(uint8_t pin) { pinMode(pin, INPUT_PULLUP); }
+
+void pullLineLow(uint8_t pin) {
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, LOW);
+}
+
+// The IMU keeps power when the UNO resets. A reset in the middle of a read
+// leaves the IMU holding SDA low. SCL pulses let it finish the byte; a STOP
+// condition then frees the bus.
+void recoverI2cBus() {
+  releaseLine(SDA);
+  for (uint8_t i = 0; i < kI2cRecoveryPulses; ++i) {
+    pullLineLow(SCL);
+    delayMicroseconds(kI2cHalfPeriodUs);
+    releaseLine(SCL);
+    delayMicroseconds(kI2cHalfPeriodUs);
+  }
+  pullLineLow(SDA);
+  delayMicroseconds(kI2cHalfPeriodUs);
+  releaseLine(SDA);
+  delayMicroseconds(kI2cHalfPeriodUs);
+}
+
 void imuInit() {
+  recoverI2cBus();
   Wire.begin();
   Wire.setWireTimeout(kI2cTimeoutUs, true);
   imu_ok = writeImuReg(kImuPowerReg, kImuWake);
