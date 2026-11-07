@@ -65,28 +65,26 @@ The project replaces the factory firmware: a command protocol for the agent is e
 The agent has three loops with different speeds. The model is not in the fast loop.
 
 ```mermaid
+%%{init: {"theme": "neutral", "flowchart": {"curve": "basis"}}}%%
 flowchart TB
-    op["<b>Operator</b><br/>Human at a web dashboard"]
-    llm["<b>Large model · seconds</b><br/>Plan, step checks, replan"]
-    pc["<b>Computer · hundreds of ms</b><br/>Car MCP server, fast frame checks"]
+    op("<b>Operator</b><br/>Human at a web dashboard")
+    llm("<b>Large model · seconds</b><br/>Plan, step checks, replan")
+    pc("<b>Computer · hundreds of ms</b><br/>Car MCP server, fast frame checks")
     subgraph car [Car]
-        uno["<b>UNO · milliseconds</b><br/>Behaviors, sonar stop, watchdog"]
-        cam["<b>ESP32 camera</b>"]
+        uno("<b>UNO · milliseconds</b><br/>Behaviors, sonar stop, watchdog")
+        cam("<b>ESP32 camera</b>")
     end
 
-    op -- instruction --> llm
-    llm -. plan and status .-> op
-    llm -- tool calls --> pc
-    pc -. frames and step status .-> llm
-    pc -- behavior programs --> uno
-    uno -. telemetry .-> pc
-    cam -. frames .-> pc
+    op <-- "↓ instruction<br/>↑ plan and status" --> llm
+    llm <-- "↓ tool calls<br/>↑ frames and step status" --> pc
+    pc <-- "↓ behavior programs<br/>↑ telemetry" --> uno
+    pc -- "↑ frames" --- cam
 
     classDef fast stroke-width:3px
     class uno fast
 ```
 
-Solid arrows are commands. Dotted arrows are observations.
+↓ marks commands. ↑ marks observations.
 
 The model plans and checks the steps at checkpoints. In front of an obstacle, the car stops by itself in milliseconds. Thus API latency makes a task slower, but not dangerous.
 
