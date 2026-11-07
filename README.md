@@ -40,7 +40,7 @@ The project replaces the factory firmware: a command protocol for the agent is e
 - [arduino-cli](https://arduino.github.io/arduino-cli/): `brew install arduino-cli`. The first `make upload` downloads the board core and the libraries that `firmware/car/sketch.yaml` sets.
 - [uv](https://docs.astral.sh/uv/): `brew install uv`.
 
-Set up Python: `make init install`. Lint and type check: `make lint`.
+Set up Python: `make init install`. Lint and type check: `make lint`. Run the tests: `make test`.
 
 Hardware test after a firmware change: [docs/hardware-test.md](docs/hardware-test.md).
 

@@ -1,6 +1,6 @@
 PORT := /dev/cu.usbserial-1110
 
-.PHONY: init install lint format upload hardware-test
+.PHONY: init install lint format test upload hardware-test
 
 init:
 	uv python install
@@ -17,6 +17,9 @@ lint:
 format:
 	uv run ruff check --fix
 	uv run ruff format
+
+test:
+	$(MAKE) -C firmware/test
 
 # firmware/car/sketch.yaml sets the board and the library versions.
 upload:
