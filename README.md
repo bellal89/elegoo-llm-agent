@@ -75,16 +75,19 @@ flowchart TB
         cam("<b>ESP32 camera</b>")
     end
 
-    op <-- "↓ instruction<br/>↑ plan and status" --> llm
-    llm <-- "↓ tool calls<br/>↑ frames and step status" --> pc
-    pc <-- "↓ behavior programs<br/>↑ telemetry" --> uno
-    pc -- "↑ frames" --- cam
+    op -- instruction --> llm
+    llm -. plan and status .-> op
+    llm -- tool calls --> pc
+    pc -. frames and step status .-> llm
+    pc -- behavior programs --> uno
+    uno -. telemetry .-> pc
+    cam -. frames .-> pc
 
     classDef fast stroke-width:3px
     class uno fast
 ```
 
-↓ marks commands. ↑ marks observations.
+Solid arrows are commands. Dotted arrows are observations.
 
 The model plans and checks the steps at checkpoints. In front of an obstacle, the car stops by itself in milliseconds. Thus API latency makes a task slower, but not dangerous.
 
