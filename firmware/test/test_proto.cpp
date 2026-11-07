@@ -135,6 +135,10 @@ static void testSetErrors() {
   CHECK(notInteger.err == ErrReason::Range);
 
   CHECK(isFrameErr("{set,kp,abc}"));
+
+  CHECK(parseOne("{set,line_mask,6}").type == CmdType::Set);
+  CHECK(parseOne("{set,line_mask,0}").err == ErrReason::Range);
+  CHECK(parseOne("{set,line_mask,8}").err == ErrReason::Range);
 }
 
 static void testParamNames() {
@@ -152,6 +156,7 @@ static void testParamNames() {
 static void testParamIsInteger() {
   CHECK(paramIsInteger(Param::MaxPwm));
   CHECK(paramIsInteger(Param::HbMs));
+  CHECK(paramIsInteger(Param::LineMask));
   CHECK(!paramIsInteger(Param::TurnSlowDeg));
   CHECK(!paramIsInteger(Param::TurnMargin));
   CHECK(!paramIsInteger(Param::Kp));

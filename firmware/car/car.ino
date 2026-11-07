@@ -46,6 +46,7 @@ void applyParams() {
   limits.sonar_stop_cm = static_cast<uint16_t>(params.get(Param::SonarStopCm));
   limits.cliff_th = static_cast<uint16_t>(params.get(Param::CliffTh));
   limits.batt_min_mv = static_cast<uint16_t>(params.get(Param::BattMinMv));
+  limits.line_mask = static_cast<uint8_t>(params.get(Param::LineMask));
 }
 
 // Blocks while the TX buffer is full. Use only for short frames: ok, err, done, p.

@@ -49,6 +49,8 @@ ParamSpec paramSpec(Param param) {
       return {"batt_min_mv", 6000, 8400, 7000, true};
     case Param::HbMs:
       return {"hb_ms", 100, 60000, 1000, true};
+    case Param::LineMask:
+      return {"line_mask", 1, 7, 7, true};
   }
   return {"", 0, 0, 0, false};
 }

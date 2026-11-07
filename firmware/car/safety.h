@@ -38,6 +38,8 @@ struct Limits {
   uint16_t sonar_stop_cm;
   uint16_t cliff_th;
   uint16_t batt_min_mv;
+  // Bit i enables the line sensor with LineSensor index i.
+  uint8_t line_mask;
 };
 
 enum class Heading : uint8_t {

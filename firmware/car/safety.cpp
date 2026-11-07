@@ -6,8 +6,9 @@ namespace {
 constexpr uint16_t kSonarNoEcho = 0;
 
 bool lineLost(const Sensors& sensors, const Limits& limits) {
-  for (uint16_t level : sensors.line) {
-    if (level > limits.cliff_th) {
+  for (uint8_t i = 0; i < kLineSensorCount; ++i) {
+    bool enabled = (limits.line_mask >> i) & 1u;
+    if (enabled && sensors.line[i] > limits.cliff_th) {
       return true;
     }
   }

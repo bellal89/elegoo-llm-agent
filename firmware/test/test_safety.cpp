@@ -5,6 +5,9 @@
 #include "safety.h"
 
 constexpr uint16_t kFloor = 500;
+constexpr uint16_t kNoFloor = 1017;
+constexpr uint8_t kAllLineSensors = 0b111;
+constexpr uint8_t kNoLeftSensor = 0b110;
 constexpr Guard kForward = {Heading::Forward, false};
 constexpr Guard kOther = {Heading::Other, false};
 
@@ -14,6 +17,7 @@ static Limits limits() {
   value.sonar_stop_cm = 25;
   value.cliff_th = 950;
   value.batt_min_mv = 7000;
+  value.line_mask = kAllLineSensors;
   return value;
 }
 
@@ -72,6 +76,19 @@ static void testCliff() {
   CHECK(checkSafety(atThreshold, limits(), kForward) == StopReason::None);
 }
 
+static void testLineMask() {
+  Limits noLeft = limits();
+  noLeft.line_mask = kNoLeftSensor;
+  Sensors deadLeft = safeSensors();
+  deadLeft.line[static_cast<uint8_t>(LineSensor::Left)] = kNoFloor;
+  CHECK(checkSafety(deadLeft, noLeft, kForward) == StopReason::None);
+  CHECK(checkSafety(deadLeft, limits(), kForward) == StopReason::Cliff);
+
+  Sensors middleLost = safeSensors();
+  middleLost.line[static_cast<uint8_t>(LineSensor::Middle)] = kNoFloor;
+  CHECK(checkSafety(middleLost, noLeft, kForward) == StopReason::Cliff);
+}
+
 static void testSonar() {
   Sensors sensors = safeSensors();
   sensors.sonar_cm = 0;
@@ -126,6 +143,7 @@ int main() {
   testHeartbeatAcrossMillisWrap();
   testImu();
   testCliff();
+  testLineMask();
   testSonar();
   testPriority();
   testMotionAllowed();

@@ -18,9 +18,10 @@ enum class Param : uint8_t {
   MaxCmdMs,
   BattMinMv,
   HbMs,
+  LineMask,
 };
 
-constexpr uint8_t kParamCount = 14;
+constexpr uint8_t kParamCount = 15;
 
 const char* paramName(Param param);
 bool paramFromName(const char* name, Param& out);
