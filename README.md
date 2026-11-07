@@ -15,7 +15,7 @@
 | `make upload` | Compile the firmware and flash the car |
 | `make hardware-test` | Run the wired part of the hardware test |
 
-The default serial port is `/dev/cu.usbserial-1110`. Set another port with `make upload PORT=<port>`.
+The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
 The pre-commit hook and the Claude Code hook format the Python code.
 
