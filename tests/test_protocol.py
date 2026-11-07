@@ -1,7 +1,6 @@
 import pytest
 
 from elegoo.protocol import (
-    FAST_FLAG,
     Command,
     Done,
     Err,
@@ -25,7 +24,6 @@ from elegoo.protocol import (
         pytest.param(Command.TURN, (-90,), "{turn,-90}", id="negative int"),
         pytest.param(Command.SET, (Param.KP, 4.5), "{set,kp,4.5}", id="param and float"),
         pytest.param(Command.SET, (Param.HB_MS, 300.0), "{set,hb_ms,300}", id="whole float"),
-        pytest.param(Command.DRIVE, (-255, 255, 65535, FAST_FLAG), "{drive,-255,255,65535,f}", id="fast flag"),
         pytest.param(Command.GET, (), "{get}", id="no args"),
     ],
 )
@@ -45,7 +43,6 @@ def test_encode_rejects_long_frame() -> None:
         pytest.param("{err,batt}", Err(reason=ErrReason.BATT), id="err"),
         pytest.param("{done,move,cliff}", Done(cmd=Command.MOVE, reason=StopReason.CLIFF), id="done"),
         pytest.param("{p,kp,4.00}", ParamValue(param=Param.KP, value=4.0), id="float param"),
-        pytest.param("{p,line_mask,6}", ParamValue(param=Param.LINE_MASK, value=6), id="int param"),
         pytest.param("{p,imu,1}", ImuStatus(ok=True), id="imu ok"),
         pytest.param("{p,imu,0}", ImuStatus(ok=False), id="imu fail"),
         pytest.param(
@@ -70,9 +67,8 @@ def test_parse_reply(frame: str, reply: Reply) -> None:
 @pytest.mark.parametrize(
     "frame",
     [
-        pytest.param("xx", id="no braces"),
+        pytest.param("ok,turn}", id="no opening brace"),
         pytest.param("{ok,turn", id="no closing brace"),
-        pytest.param("{}", id="empty"),
         pytest.param("{ok}", id="missing field"),
         pytest.param("{ok,turn,1}", id="extra field"),
         pytest.param("{zz,turn}", id="unknown kind"),

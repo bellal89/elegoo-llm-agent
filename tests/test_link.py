@@ -59,6 +59,8 @@ def test_send_and_bridge_heartbeat(link: TcpLink, bridge: socket.socket) -> None
 
 
 def test_closed_connection_raises(link: TcpLink, bridge: socket.socket) -> None:
+    # Unread data makes close() send RST instead of FIN.
+    bridge.recv(RECV_SIZE)
     bridge.close()
     with pytest.raises(LinkError):
         link.recv(RECV_TIMEOUT_S)

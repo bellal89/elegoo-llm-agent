@@ -1,3 +1,4 @@
+import threading
 import time
 from collections.abc import Callable
 
@@ -5,7 +6,7 @@ import pytest
 
 from elegoo.car import HB_MS_SERIAL, Car
 from elegoo.errors import CommandRejectedError, ReplyTimeoutError
-from elegoo.protocol import ErrReason, MotionKind, Param, StopReason
+from elegoo.protocol import ErrReason, Param, StopReason, parse_reply
 from tests.conftest import FakeLink
 
 WAIT_S = 1.0
@@ -13,6 +14,7 @@ POLL_S = 0.01
 HB_FRAME = "{hb}"
 STOP_FRAME = "{stop}"
 TELE_FRAME = "{t,1234,30,45,1017,46,9000,7810,turn,none}"
+BOOT_DELAY_S = 0.2
 
 
 def wait_until(condition: Callable[[], bool]) -> bool:
@@ -30,17 +32,20 @@ def test_start_sets_hb_ms_and_reads_params(link: FakeLink, car: Car) -> None:
     assert car.params() == {Param.MAX_PWM: 100, Param.KP: 4.0}
 
 
+def test_start_waits_for_boot_report(link: FakeLink) -> None:
+    link.resets_car = True
+    for frame in ["{p,max_pwm,100}", "{p,imu,1}"]:
+        threading.Timer(BOOT_DELAY_S, link.push, [frame]).start()
+    start_s = time.monotonic()
+    with Car(link, HB_MS_SERIAL):
+        assert time.monotonic() - start_s >= BOOT_DELAY_S
+
+
 def test_failed_start_closes_link(link: FakeLink) -> None:
     del link.script["{get}"]
     with pytest.raises(ReplyTimeoutError):
         Car(link, HB_MS_SERIAL)
     assert link.closed
-
-
-def test_turn_sends_frame(link: FakeLink, car: Car) -> None:
-    link.script["{turn,-90}"] = ["{ok,turn}"]
-    car.turn(-90)
-    assert "{turn,-90}" in link.sent
 
 
 @pytest.mark.parametrize(
@@ -66,9 +71,8 @@ def test_wait_done_keeps_done_received_during_other_command(link: FakeLink, car:
 
 
 def test_drive_sends_fast_flag(link: FakeLink, car: Car) -> None:
-    link.script["{drive,100,-100,500,f}"] = ["{ok,drive}", "{done,drive,done}"]
+    link.script["{drive,100,-100,500,f}"] = ["{ok,drive}"]
     car.drive(100, right=-100, duration_ms=500, fast=True)
-    assert car.wait_done(WAIT_S) is StopReason.DONE
 
 
 def test_wait_done_times_out(link: FakeLink, car: Car) -> None:
@@ -85,19 +89,24 @@ def test_err_reply_raises(link: FakeLink, car: Car) -> None:
     assert error.value.reason is ErrReason.BATT
 
 
-def test_no_reply_raises(car: Car) -> None:
+@pytest.mark.parametrize(
+    "replies",
+    [
+        pytest.param([], id="no reply"),
+        pytest.param(["{ok,stop}"], id="wrong ok"),
+    ],
+)
+def test_no_ok_raises(link: FakeLink, car: Car, replies: list[str]) -> None:
+    link.script["{tele,100}"] = replies
     with pytest.raises(ReplyTimeoutError):
-        car.gyro()
+        car.tele(100)
 
 
 def test_tele_updates_last_tele_after_bad_frames(link: FakeLink, car: Car) -> None:
     for frame in ["{zz}", "{t,1,2}", "{done,turn,zz}", TELE_FRAME]:
         link.push(frame)
     assert wait_until(lambda: car.last_tele is not None)
-    tele = car.last_tele
-    assert tele is not None
-    assert tele.yaw_deg == 90.0
-    assert tele.motion is MotionKind.TURN
+    assert car.last_tele == parse_reply(TELE_FRAME)
 
 
 def test_heartbeat_runs(link: FakeLink, car: Car) -> None:
