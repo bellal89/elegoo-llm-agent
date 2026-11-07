@@ -1,6 +1,22 @@
 PORT := /dev/cu.usbserial-1110
 
-.PHONY: upload hardware-test
+.PHONY: init install lint format upload hardware-test
+
+init:
+	uv python install
+	uv venv
+
+install:
+	uv sync --locked
+
+lint:
+	uv run ruff check
+	uv run ruff format --check
+	uv run pyright
+
+format:
+	uv run ruff check --fix
+	uv run ruff format
 
 # firmware/car/sketch.yaml sets the board and the library versions.
 upload:
