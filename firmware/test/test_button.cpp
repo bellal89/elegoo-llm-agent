@@ -3,7 +3,6 @@
 #include "button.h"
 #include "check.h"
 
-// Feeds `down` from start_ms to end_ms and counts the presses.
 static int feed(Button& button, bool down, uint32_t start_ms, uint32_t end_ms) {
   int presses = 0;
   for (uint32_t now_ms = start_ms; now_ms != end_ms; ++now_ms) {

@@ -9,7 +9,6 @@ import time
 
 import serial
 
-DEFAULT_PORT = "/dev/cu.usbserial-1110"
 BAUD = 9600
 READ_TIMEOUT_S = 0.05
 BOOT_TIMEOUT_S = 8.0
@@ -20,19 +19,21 @@ FIXED_SCALE = 100
 HB_MS_LONG = 60000
 HB_MS_DEFAULT = 1000
 TELE_PERIOD_MS = 100
+TELE_OFF = 0
 SPIN_PWM = 100
 SPIN_MS = 1000
 LONG_SPIN_MS = 3000
 STOP_AFTER_S = 0.5
 TURN_DEG = 90
 
-EXPECTED_LINE_MASK = 6
+EXPECTED_LINE_MASK = "6"
 IMU_OK = "1"
 MIN_BATT_MV = 7000
 MIN_SPIN_DEG = 20
 TURN_TOLERANCE_DEG = 10
 TIMING_TOLERANCE_S = 0.3
 TELE_WINDOW_S = 1.0
+TELE_OFF_WINDOW_S = 0.6
 MIN_TELE_FRAMES = 8
 MAX_TELE_FRAMES = 12
 
@@ -94,7 +95,7 @@ class Link:
         self.frames: list[Frame] = []
 
     def send(self, *fields: object) -> float:
-        text = "{" + ",".join(str(field) for field in fields) + "}"
+        text = format_frame(*fields)
         sent_s = self._now()
         print(f"{sent_s:7.2f} > {text}")
         self._serial.write(text.encode())
@@ -136,12 +137,12 @@ class Link:
         kind_text, *args = line.strip("{}").split(",")
         try:
             kind = FrameKind(kind_text)
-        except ValueError:
+            reason = StopReason(args[DONE_REASON_ARG]) if kind is FrameKind.DONE else None
+        except (ValueError, IndexError):
             print(f"{time_s:7.2f} ! {line}")
             return None
         if kind is not FrameKind.TELE:
             print(f"{time_s:7.2f} < {line}")
-        reason = StopReason(args[DONE_REASON_ARG]) if kind is FrameKind.DONE else None
         frame = Frame(time_s=time_s, line=line, kind=kind, args=tuple(args), reason=reason)
         self.frames.append(frame)
         return frame
@@ -159,18 +160,22 @@ class Report:
         print(f"{'PASS' if passed else 'FAIL'}  {name}: {detail}")
 
 
+def format_frame(*fields: object) -> str:
+    return "{" + ",".join(str(field) for field in fields) + "}"
+
+
 def check_boot(link: Link, report: Report) -> None:
-    imu = link.read_until(FrameKind.PARAM, ParamKey.IMU, timeout_s=BOOT_TIMEOUT_S)
+    link.read_until(FrameKind.PARAM, ParamKey.IMU, timeout_s=BOOT_TIMEOUT_S)
     params = {frame.args[0]: frame.args[1] for frame in link.frames if frame.kind is FrameKind.PARAM}
-    imu_ok = imu is not None and imu.args[1] == IMU_OK
-    report.check("A1 boot imu", passed=imu_ok, detail=f"imu={params.get(ParamKey.IMU)}")
+    imu = params.get(ParamKey.IMU)
+    report.check("boot imu", passed=imu == IMU_OK, detail=f"imu={imu}")
     line_mask = params.get(ParamKey.LINE_MASK)
-    report.check("A1 boot line_mask", passed=line_mask == str(EXPECTED_LINE_MASK), detail=f"line_mask={line_mask}")
+    report.check("boot line_mask", passed=line_mask == EXPECTED_LINE_MASK, detail=f"line_mask={line_mask}")
 
 
 def expect_reply(link: Link, report: Report, *, name: str, kind: FrameKind, args: tuple[str, ...]) -> None:
     reply = link.read_until(kind, *args, timeout_s=REPLY_TIMEOUT_S)
-    report.check(name, passed=reply is not None, detail="{" + ",".join((kind, *args)) + "}")
+    report.check(name, passed=reply is not None, detail=format_frame(kind, *args))
 
 
 def run_motion(link: Link, report: Report, *, name: str, cmd: Cmd, args: tuple[int, ...], timeout_s: float) -> float:
@@ -203,38 +208,38 @@ def check_stop(link: Link, report: Report) -> None:
     link.send(Cmd.DRIVE, SPIN_PWM, -SPIN_PWM, LONG_SPIN_MS)
     link.read_for(STOP_AFTER_S)
     link.send(Cmd.STOP)
-    expect_reply(link, report, name="A5 stop reply", kind=FrameKind.OK, args=(Cmd.STOP,))
-    expect_reply(link, report, name="A5 stop done", kind=FrameKind.DONE, args=(Cmd.DRIVE, StopReason.CMD))
+    expect_reply(link, report, name="stop reply", kind=FrameKind.OK, args=(Cmd.STOP,))
+    expect_reply(link, report, name="stop done", kind=FrameKind.DONE, args=(Cmd.DRIVE, StopReason.CMD))
     link.read_for(SETTLE_S)
 
 
 def check_tele(link: Link, report: Report) -> None:
     count = sum(frame.kind is FrameKind.TELE for frame in link.read_for(TELE_WINDOW_S))
     passed = MIN_TELE_FRAMES <= count <= MAX_TELE_FRAMES
-    report.check("A6 tele rate", passed=passed, detail=f"{count} frames in {TELE_WINDOW_S} s")
-    link.send(Cmd.TELE, 0)
-    expect_reply(link, report, name="A6 tele off reply", kind=FrameKind.OK, args=(Cmd.TELE,))
-    late = sum(frame.kind is FrameKind.TELE for frame in link.read_for(SETTLE_S * 2))
-    report.check("A6 tele off", passed=late == 0, detail=f"{late} frames after tele off")
+    report.check("tele rate", passed=passed, detail=f"{count} frames in {TELE_WINDOW_S} s")
+    link.send(Cmd.TELE, TELE_OFF)
+    expect_reply(link, report, name="tele off reply", kind=FrameKind.OK, args=(Cmd.TELE,))
+    late = sum(frame.kind is FrameKind.TELE for frame in link.read_for(TELE_OFF_WINDOW_S))
+    report.check("tele off", passed=late == 0, detail=f"{late} frames after tele off")
 
 
 def check_heartbeat(link: Link, report: Report) -> None:
     link.send(Cmd.SET, ParamKey.HB_MS, HB_MS_DEFAULT)
-    expect_reply(link, report, name="A7 set hb_ms", kind=FrameKind.OK, args=(Cmd.SET,))
+    expect_reply(link, report, name="set hb_ms", kind=FrameKind.OK, args=(Cmd.SET,))
     link.send(Cmd.DRIVE, SPIN_PWM, -SPIN_PWM, LONG_SPIN_MS)
     ok = link.read_until(FrameKind.OK, Cmd.DRIVE, timeout_s=REPLY_TIMEOUT_S)
     done = link.read_until(FrameKind.DONE, Cmd.DRIVE, timeout_s=LONG_SPIN_MS / 1000)
     if ok is None or done is None:
-        report.check("A7 heartbeat stop", passed=False, detail="no ok or done frame")
+        report.check("heartbeat stop", passed=False, detail="no ok or done frame")
         return
     after_s = done.time_s - ok.time_s
     passed = done.reason is StopReason.HB and abs(after_s - HB_MS_DEFAULT / 1000) <= TIMING_TOLERANCE_S
-    report.check("A7 heartbeat stop", passed=passed, detail=f"{done.line} after {after_s:.2f} s")
+    report.check("heartbeat stop", passed=passed, detail=f"{done.line} after {after_s:.2f} s")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the wired part of the hardware test.")
-    parser.add_argument("--port", default=DEFAULT_PORT)
+    parser.add_argument("--port", required=True)
     port = parser.parse_args().port
 
     link = Link(port)
@@ -246,12 +251,12 @@ def main() -> int:
     expect_reply(link, report, name="setup tele", kind=FrameKind.OK, args=(Cmd.TELE,))
     link.read_for(SETTLE_S)
     batt_mv = link.batt_mv()
-    report.check("A1 battery", passed=batt_mv >= MIN_BATT_MV, detail=f"{batt_mv} mV")
+    report.check("battery", passed=batt_mv >= MIN_BATT_MV, detail=f"{batt_mv} mV")
 
-    check_spin(link, report, name="A2 spin right", sign=1)
-    check_spin(link, report, name="A3 spin left", sign=-1)
-    check_turn(link, report, name="A4 turn right", deg=TURN_DEG)
-    check_turn(link, report, name="A4 turn left", deg=-TURN_DEG)
+    check_spin(link, report, name="spin right", sign=1)
+    check_spin(link, report, name="spin left", sign=-1)
+    check_turn(link, report, name="turn right", deg=TURN_DEG)
+    check_turn(link, report, name="turn left", deg=-TURN_DEG)
     check_stop(link, report)
     check_tele(link, report)
     check_heartbeat(link, report)

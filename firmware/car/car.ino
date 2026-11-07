@@ -115,9 +115,15 @@ void startMotion(const Cmd& cmd) {
   hw::led(LedColor::Green);
 }
 
-void calibrateGyro() {
+// loop() does not run during a blocking step, so stop the motors before it.
+void stopBeforeBlocking() {
   motion.stop(StopReason::Cmd);
+  hw::motors({0, 0});
   reportEnded();
+}
+
+void calibrateGyro() {
+  stopBeforeBlocking();
   hw::gyroBias();
   last_hb_ms = millis();
   if (hw::imuOk()) {
@@ -136,9 +142,7 @@ void blinkUntilHandAway() {
 
 // Blocks for the delay and the gyro bias, then moves forward until a stop.
 void startSelfTest() {
-  motion.stop(StopReason::Cmd);
-  hw::motors({0, 0});
-  reportEnded();
+  stopBeforeBlocking();
   blinkUntilHandAway();
   hw::led(LedColor::Blue);
   hw::gyroBias();

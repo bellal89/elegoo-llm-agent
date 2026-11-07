@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-// Debounces a push button.
 class Button {
  public:
   // True once for each press.
