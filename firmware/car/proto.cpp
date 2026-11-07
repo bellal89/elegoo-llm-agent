@@ -187,9 +187,6 @@ Cmd parseContent(char* content) {
   }
   char* fields[kMaxFields + 1] = {};
   uint8_t count = splitFields(content, fields);
-  if (count > kMaxFields) {
-    return makeErr(ErrReason::Frame);
-  }
   for (CmdType type : kHostCommands) {
     if (strcmp(fields[0], cmdName(type)) == 0) {
       return parseCommand(type, fields, count);

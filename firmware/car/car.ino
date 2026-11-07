@@ -1,3 +1,4 @@
+#include "control.h"
 #include "hw.h"
 #include "motion.h"
 #include "params.h"
@@ -31,21 +32,8 @@ uint32_t tele_ms = 0;
 uint8_t get_step = kGetIdle;
 
 void applyParams() {
-  motion_params.max_pwm = static_cast<int16_t>(params.get(Param::MaxPwm));
-  motion_params.move_pwm = static_cast<int16_t>(params.get(Param::MovePwm));
-  motion_params.turn_pwm = static_cast<int16_t>(params.get(Param::TurnPwm));
-  motion_params.turn_slow_pwm = static_cast<int16_t>(params.get(Param::TurnSlowPwm));
-  motion_params.turn_slow_deg = params.get(Param::TurnSlowDeg);
-  motion_params.turn_margin = params.get(Param::TurnMargin);
-  motion_params.kp = params.get(Param::Kp);
-  motion_params.back_pwm = static_cast<int16_t>(params.get(Param::BackPwm));
-  motion_params.back_ms = static_cast<uint16_t>(params.get(Param::BackMs));
-  motion_params.max_cmd_ms = static_cast<uint16_t>(params.get(Param::MaxCmdMs));
-  limits.hb_ms = static_cast<uint16_t>(params.get(Param::HbMs));
-  limits.sonar_stop_cm = static_cast<uint16_t>(params.get(Param::SonarStopCm));
-  limits.cliff_th = static_cast<uint16_t>(params.get(Param::CliffTh));
-  limits.batt_min_mv = static_cast<uint16_t>(params.get(Param::BattMinMv));
-  limits.line_mask = static_cast<uint8_t>(params.get(Param::LineMask));
+  motion_params = motionParamsFrom(params);
+  limits = limitsFrom(params);
 }
 
 // Blocks while the TX buffer is full. Use only for short frames: ok, err, done, p.
@@ -113,26 +101,6 @@ Sensors readSensors(uint32_t now_ms) {
   sensors.batt_mv = hw::battMv();
   sensors.imu_ok = hw::imuOk();
   return sensors;
-}
-
-bool resetsHeartbeat(CmdType type) {
-  switch (type) {
-    case CmdType::Hb:
-    case CmdType::Stop:
-    case CmdType::Drive:
-    case CmdType::Move:
-    case CmdType::Turn:
-    case CmdType::Gyro:
-    case CmdType::Tele:
-    case CmdType::Set:
-    case CmdType::Get:
-      return true;
-    case CmdType::BridgeStop:
-    case CmdType::Ignore:
-    case CmdType::Err:
-      return false;
-  }
-  return false;
 }
 
 void startMotion(const Cmd& cmd) {
@@ -222,29 +190,6 @@ void readCommands() {
   }
 }
 
-void checkMotionSafety(const Sensors& sensors, uint32_t now_ms) {
-  if (!motion.active() || motion.kind() == MotionKind::Back) {
-    return;
-  }
-  StopReason reason = checkSafety(sensors, limits, motion.guard());
-  switch (reason) {
-    case StopReason::None:
-      break;
-    case StopReason::Cliff:
-      motion.cliffBackoff(now_ms);
-      break;
-    case StopReason::Done:
-    case StopReason::Cmd:
-    case StopReason::Hb:
-    case StopReason::Bridge:
-    case StopReason::Sonar:
-    case StopReason::Timeout:
-    case StopReason::Imu:
-      motion.stop(reason);
-      break;
-  }
-}
-
 // The TX buffer cannot hold all {get} replies: send one per loop when it fits.
 void sendNextGetReply() {
   if (get_step == kGetIdle) {
@@ -299,7 +244,7 @@ void loop() {
   hw::update(now_ms);
   hw::updateYaw();
   Sensors sensors = readSensors(now_ms);
-  checkMotionSafety(sensors, now_ms);
+  checkMotionSafety(motion, sensors, limits);
   hw::motors(motion.step(now_ms, hw::yawDeg()));
   reportEnded();
   sendNextGetReply();

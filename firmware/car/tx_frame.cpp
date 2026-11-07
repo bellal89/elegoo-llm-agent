@@ -65,7 +65,7 @@ uint8_t TxFrame::length() const { return length_ + kFrameEndLen; }
 
 void TxFrame::append(const char* text) {
   size_t text_len = strlen(text);
-  if (overflow_ || length_ + text_len + kFrameEndLen > kTxFrameCapacity) {
+  if (length_ + text_len + kFrameEndLen > kTxFrameCapacity) {
     overflow_ = true;
     return;
   }

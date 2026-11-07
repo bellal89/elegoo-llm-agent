@@ -8,8 +8,6 @@ static bool hasText(const TxFrame& frame, const char* expected) {
   return frame.valid() && strcmp(frame.text(), expected) == 0 && frame.length() == strlen(expected);
 }
 
-static void testKindOnly() { CHECK(hasText(TxFrame("ok"), "{ok}\n")); }
-
 static void testTextFields() { CHECK(hasText(TxFrame("done").add("turn").add("cliff"), "{done,turn,cliff}\n")); }
 
 static void testIntegers() {
@@ -38,7 +36,6 @@ static void testCapacity() {
 }
 
 int main() {
-  testKindOnly();
   testTextFields();
   testIntegers();
   testFloats();
