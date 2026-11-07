@@ -1,5 +1,28 @@
 # LLM agent for the Elegoo robot car
 
+## Prerequisites
+
+- [arduino-cli](https://arduino.github.io/arduino-cli/): `brew install arduino-cli`. The first `make upload` downloads the board core and the libraries that `firmware/car/sketch.yaml` sets.
+- [uv](https://docs.astral.sh/uv/): `brew install uv`.
+
+## Usage
+
+| Command | Action |
+| --- | --- |
+| `make init install` | Set up Python and the git hooks |
+| `make lint` | Lint and type check the Python code |
+| `make test` | Run the firmware tests on the computer |
+| `make upload` | Compile the firmware and flash the car |
+| `make hardware-test` | Run the wired part of the hardware test |
+
+The default serial port is `/dev/cu.usbserial-1110`. Set another port with `make upload PORT=<port>`.
+
+The pre-commit hook and the Claude Code hook format the Python code.
+
+Hardware test after a firmware change: [docs/hardware-test.md](docs/hardware-test.md).
+
+## About
+
 An agent drives the Elegoo robot car from a natural-language instruction. It checks each step with the camera and the sensors. The operator watches the car video on a monitor and gives a task, for example: "drive to the red box and turn to face the door".
 
 At start, the agent calibrates the car. Then it converts the instruction into a plan, executes the steps through a safe set of actions, and makes a new plan when a step fails.
@@ -34,15 +57,6 @@ Three levels of "code for the car":
 3. **Optional: generated firmware.** The agent writes C++, compiles it, and flashes it with arduino-cli. Slow, but a good demo.
 
 The project replaces the factory firmware: a command protocol for the agent is easier to design from zero.
-
-## Prerequisites
-
-- [arduino-cli](https://arduino.github.io/arduino-cli/): `brew install arduino-cli`. The first `make upload` downloads the board core and the libraries that `firmware/car/sketch.yaml` sets.
-- [uv](https://docs.astral.sh/uv/): `brew install uv`.
-
-Set up Python and the git hooks: `make init install`. The pre-commit hook and the Claude Code hook format the Python code. Lint and type check: `make lint`. Run the tests: `make test`.
-
-Hardware test after a firmware change: [docs/hardware-test.md](docs/hardware-test.md).
 
 ## Architecture: three loops
 
