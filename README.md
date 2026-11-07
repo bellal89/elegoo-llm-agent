@@ -17,7 +17,7 @@
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
-To turn the car 90° to the right, run `uv run python -m elegoo.car --port /dev/cu.usbserial-1110 turn 90`. Through the ESP32 Wi-Fi, use `--tcp` instead of `--port`.
+To turn the car 90° to the right, run `uv run python -m elegoo.car --port /dev/cu.usbserial-1110 turn 90`. Through the ESP32 Wi-Fi, use `--tcp` instead of `--port PORT`.
 
 The pre-commit hook formats the Python code.
 

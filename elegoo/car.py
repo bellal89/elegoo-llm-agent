@@ -36,7 +36,7 @@ TURN_DONE_TIMEOUT_S = 6.0
 
 logger = logging.getLogger(__name__)
 
-type Response = Ok | Err | Done | ParamValue | ImuStatus
+type CommandReply = Ok | Err | Done | ParamValue | ImuStatus
 
 
 class CliCommand(enum.StrEnum):
@@ -47,7 +47,7 @@ class Car:
     def __init__(self, link: Link, hb_ms: int) -> None:
         self._link = link
         self._hb_period_s = hb_ms / MS_PER_S / HB_PER_PERIOD
-        self._responses: queue.Queue[Response] = queue.Queue()
+        self._replies: queue.Queue[CommandReply] = queue.Queue()
         self._pending_dones: list[Done] = []
         self._motion: Command | None = None
         self._last_tele: Tele | None = None
@@ -147,8 +147,8 @@ class Car:
 
     def _wait_boot(self) -> None:
         deadline_s = time.monotonic() + BOOT_TIMEOUT_S
-        while not isinstance(reply := self._next_response(deadline_s, expected="boot report"), ImuStatus):
-            logger.debug("Skip boot %s", reply)
+        while not isinstance(reply := self._next_reply(deadline_s, expected="boot report"), ImuStatus):
+            logger.debug("Drop boot %s", reply)
         self._imu_ok = reply.ok
 
     def _fast_args(self, fast: bool) -> tuple[str, ...]:
@@ -168,7 +168,7 @@ class Car:
         deadline_s = time.monotonic() + timeout_s
         values: list[ParamValue | ImuStatus] = []
         while True:
-            reply = self._next_response(deadline_s, expected=f"ok for {command}")
+            reply = self._next_reply(deadline_s, expected=f"ok for {command}")
             match reply:
                 case Ok() if reply.cmd is command:
                     return values
@@ -183,16 +183,16 @@ class Car:
 
     def _next_done(self, deadline_s: float) -> Done:
         while True:
-            reply = self._next_response(deadline_s, expected="done")
+            reply = self._next_reply(deadline_s, expected="done")
             match reply:
                 case Done():
                     return reply
                 case Ok() | Err() | ParamValue() | ImuStatus():
                     logger.warning("Drop unexpected %s", reply)
 
-    def _next_response(self, deadline_s: float, *, expected: str) -> Response:
+    def _next_reply(self, deadline_s: float, *, expected: str) -> CommandReply:
         try:
-            return self._responses.get(timeout=max(0.0, deadline_s - time.monotonic()))
+            return self._replies.get(timeout=max(0.0, deadline_s - time.monotonic()))
         except queue.Empty:
             raise ReplyTimeoutError(f"no {expected} from the car") from None
 
@@ -215,11 +215,11 @@ class Car:
         reply = parse_reply(frame)
         match reply:
             case None:
-                logger.warning("Skip bad frame %s", frame)
+                logger.warning("Drop bad frame %s", frame)
             case Tele():
                 self._last_tele = reply
             case Ok() | Err() | Done() | ParamValue() | ImuStatus():
-                self._responses.put(reply)
+                self._replies.put(reply)
 
     def _send_heartbeats(self) -> None:
         try:

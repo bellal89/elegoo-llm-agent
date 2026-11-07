@@ -18,6 +18,7 @@ ENCODING = "ascii"
 TCP_HOST = "192.168.4.1"
 TCP_PORT = 100
 TCP_CONNECT_TIMEOUT_S = 3.0
+TCP_READ_SIZE = 64
 # The ESP32 bridge drops the client after 3 missed heartbeats, 1 s apart.
 BRIDGE_HEARTBEAT = "{Heartbeat}"
 BRIDGE_HEARTBEAT_S = 1.0
@@ -127,7 +128,7 @@ class TcpLink:
 
     def _read(self) -> bytes:
         try:
-            data = self._socket.recv(RX_FRAME_MAX_LEN)
+            data = self._socket.recv(TCP_READ_SIZE)
         except TimeoutError:
             return b""
         except OSError as error:
