@@ -45,8 +45,8 @@ constexpr uint8_t kImuGyroZReg = 0x47;
 constexpr uint8_t kImuGyroZBytes = 2;
 // Default full scale +-250 deg/s.
 constexpr float kImuLsbPerDps = 131;
-// Yaw must grow on a right turn; the bench test confirms the sign.
-constexpr float kGyroSign = 1;
+// The module is mounted Z up: raw Z is negative on a right turn (bench test).
+constexpr float kGyroSign = -1;
 constexpr uint32_t kI2cTimeoutUs = 3000;
 constexpr uint32_t kGyroBiasMs = 2000;
 constexpr float kUsPerS = 1e6f;
