@@ -26,12 +26,19 @@ const char* paramName(Param param);
 bool paramFromName(const char* name, Param& out);
 float paramDefault(Param param);
 bool paramInRange(Param param, float value);
+bool paramIsInteger(Param param);
 
 class Params {
  public:
   Params();
   float get(Param param) const;
   void set(Param param, float value);
+#ifdef ARDUINO
+  // Bad header or out-of-range values: writes defaults. HbMs keeps its default.
+  void load();
+  // Ignores HbMs: it is set per session by the host.
+  void store(Param param) const;
+#endif
 
  private:
   float values_[kParamCount];

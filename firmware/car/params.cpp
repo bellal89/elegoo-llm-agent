@@ -2,6 +2,10 @@
 
 #include <string.h>
 
+#ifdef ARDUINO
+#include <EEPROM.h>
+#endif
+
 namespace {
 
 struct ParamSpec {
@@ -74,6 +78,8 @@ bool paramInRange(Param param, float value) {
   return !spec.integer || static_cast<float>(static_cast<int32_t>(value)) == value;
 }
 
+bool paramIsInteger(Param param) { return paramSpec(param).integer; }
+
 Params::Params() {
   for (uint8_t i = 0; i < kParamCount; ++i) {
     values_[i] = paramDefault(static_cast<Param>(i));
@@ -83,3 +89,43 @@ Params::Params() {
 float Params::get(Param param) const { return values_[static_cast<uint8_t>(param)]; }
 
 void Params::set(Param param, float value) { values_[static_cast<uint8_t>(param)] = value; }
+
+#ifdef ARDUINO
+
+namespace {
+
+constexpr int kMagicAddr = 0;
+constexpr int kVersionAddr = 1;
+constexpr int kHeaderSize = 2;
+constexpr uint8_t kMagic = 0xE7;
+constexpr uint8_t kVersion = 1;
+
+int slotAddr(Param param) { return kHeaderSize + static_cast<uint8_t>(param) * static_cast<int>(sizeof(float)); }
+
+}  // namespace
+
+void Params::load() {
+  bool header_ok = EEPROM.read(kMagicAddr) == kMagic && EEPROM.read(kVersionAddr) == kVersion;
+  for (uint8_t i = 0; i < kParamCount; ++i) {
+    Param param = static_cast<Param>(i);
+    float value = paramDefault(param);
+    if (header_ok && param != Param::HbMs) {
+      EEPROM.get(slotAddr(param), value);
+    }
+    // Erased EEPROM reads as NaN; paramInRange rejects it.
+    set(param, paramInRange(param, value) ? value : paramDefault(param));
+    // EEPROM.put writes only the bytes that differ.
+    store(param);
+  }
+  EEPROM.update(kMagicAddr, kMagic);
+  EEPROM.update(kVersionAddr, kVersion);
+}
+
+void Params::store(Param param) const {
+  if (param == Param::HbMs) {
+    return;
+  }
+  EEPROM.put(slotAddr(param), get(param));
+}
+
+#endif

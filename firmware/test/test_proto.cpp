@@ -149,6 +149,14 @@ static void testParamNames() {
   CHECK(!paramFromName("nope", unused));
 }
 
+static void testParamIsInteger() {
+  CHECK(paramIsInteger(Param::MaxPwm));
+  CHECK(paramIsInteger(Param::HbMs));
+  CHECK(!paramIsInteger(Param::TurnSlowDeg));
+  CHECK(!paramIsInteger(Param::TurnMargin));
+  CHECK(!paramIsInteger(Param::Kp));
+}
+
 static void testParamsStore() {
   Params params;
   CHECK(params.get(Param::MaxPwm) == paramDefault(Param::MaxPwm));
@@ -177,6 +185,7 @@ int main() {
   testBytesOutsideBraces();
   testSetErrors();
   testParamNames();
+  testParamIsInteger();
   testParamsStore();
   testErrReasonNames();
   return checkSummary("test_proto");
