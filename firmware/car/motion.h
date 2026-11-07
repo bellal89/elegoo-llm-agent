@@ -37,7 +37,7 @@ struct Out {
 };
 
 // Yaw is in degrees, + = right turn. Params are read by reference: a change
-// takes effect on the next start().
+// takes effect at once, also for an active motion.
 class Motion {
  public:
   explicit Motion(const MotionParams& params);

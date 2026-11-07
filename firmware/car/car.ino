@@ -7,7 +7,6 @@
 
 constexpr unsigned long kBaud = 9600;
 constexpr uint16_t kTeleOff = 0;
-constexpr float kCentiPerUnit = 100;
 
 constexpr const char* kOkKind = "ok";
 constexpr const char* kErrKind = "err";
@@ -272,7 +271,7 @@ void sendTelemetry(const Sensors& sensors) {
   for (uint16_t level : sensors.line) {
     frame.add(static_cast<uint32_t>(level));
   }
-  frame.add(static_cast<int32_t>(lround(hw::yawDeg() * kCentiPerUnit)))
+  frame.add(static_cast<int32_t>(lround(hw::yawDeg() * kFixedScale)))
       .add(static_cast<uint32_t>(sensors.batt_mv))
       .add(motionKindName(motion.kind()))
       .add(stopReasonName(motion.lastReason()));

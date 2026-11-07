@@ -10,7 +10,6 @@ constexpr const char* kFrameEnd = "}\n";
 constexpr uint8_t kFrameEndLen = 2;
 constexpr uint8_t kUint32MaxDigits = 10;
 constexpr uint8_t kDecimalBase = 10;
-constexpr float kCentsPerUnit = 100;
 constexpr float kRoundHalf = 0.5f;
 
 }  // namespace
@@ -43,15 +42,15 @@ TxFrame& TxFrame::add(uint32_t value) {
 }
 
 TxFrame& TxFrame::add(float value) {
-  float scaled = value * kCentsPerUnit;
-  int32_t cents = static_cast<int32_t>(scaled < 0 ? scaled - kRoundHalf : scaled + kRoundHalf);
+  float scaled = value * kFixedScale;
+  int32_t rounded = static_cast<int32_t>(scaled < 0 ? scaled - kRoundHalf : scaled + kRoundHalf);
   append(kFieldSeparator);
-  if (cents < 0) {
+  if (rounded < 0) {
     append("-");
   }
-  uint32_t magnitude = cents < 0 ? 0u - static_cast<uint32_t>(cents) : static_cast<uint32_t>(cents);
-  uint32_t units = magnitude / static_cast<uint32_t>(kCentsPerUnit);
-  uint32_t fraction = magnitude % static_cast<uint32_t>(kCentsPerUnit);
+  uint32_t magnitude = rounded < 0 ? 0u - static_cast<uint32_t>(rounded) : static_cast<uint32_t>(rounded);
+  uint32_t units = magnitude / static_cast<uint32_t>(kFixedScale);
+  uint32_t fraction = magnitude % static_cast<uint32_t>(kFixedScale);
   appendUnsigned(units);
   append(fraction < kDecimalBase ? ".0" : ".");
   appendUnsigned(fraction);

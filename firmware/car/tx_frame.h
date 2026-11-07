@@ -4,6 +4,7 @@
 
 // The UNO TX ring buffer has 64 bytes and holds at most 63.
 constexpr uint8_t kTxFrameCapacity = 63;
+constexpr float kFixedScale = 100;
 
 // Builds "{kind,field,...}\n". A frame that exceeds kTxFrameCapacity is invalid.
 class TxFrame {
