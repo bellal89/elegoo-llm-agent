@@ -66,25 +66,27 @@ The agent has three loops with different speeds. The model is not in the fast lo
 
 ```mermaid
 flowchart TB
-    op["<b>Operator</b><br/>Camera video, chat, plan and telemetry on a web dashboard"]
-    llm["<b>Large model · seconds</b><br/>Converts the instruction into a plan, selects tools<br/>Checks steps on frames, replans on failure"]
-    pc["<b>Computer · hundreds of ms</b><br/>Car MCP server, fast frame checks:<br/>ArUco with OpenCV or a small VLM, episode recording"]
-    uno["<b>UNO on board · milliseconds</b><br/>Behavior interpreter, sonar stop<br/>Watchdog: stop when the link to the computer is lost"]
-    cam["<b>ESP32 camera</b><br/>OV2640, frames over Wi-Fi"]
+    op["<b>Operator</b><br/>Human at a web dashboard"]
+    llm["<b>Large model · seconds</b><br/>Plan, step checks, replan"]
+    pc["<b>Computer · hundreds of ms</b><br/>Car MCP server, fast frame checks"]
+    subgraph car [Car]
+        uno["<b>UNO · milliseconds</b><br/>Behaviors, sonar stop, watchdog"]
+        cam["<b>ESP32 camera</b>"]
+    end
 
     op -- instruction --> llm
-    llm -- plan and status --> op
+    llm -. plan and status .-> op
     llm -- tool calls --> pc
-    pc -- frames and step status --> llm
-    pc -- behavior programs over Wi-Fi --> uno
-    uno -- telemetry --> pc
-    cam -- frames --> pc
+    pc -. frames and step status .-> llm
+    pc -- behavior programs --> uno
+    uno -. telemetry .-> pc
+    cam -. frames .-> pc
 
     classDef fast stroke-width:3px
     class uno fast
 ```
 
-Down arrows are commands; up arrows are observations.
+Solid arrows are commands. Dotted arrows are observations.
 
 The model plans and checks the steps at checkpoints. In front of an obstacle, the car stops by itself in milliseconds. Thus API latency makes a task slower, but not dangerous.
 
