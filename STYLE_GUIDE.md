@@ -109,7 +109,8 @@ Use this order:
 
 ### Errors
 
-- Raise specific project exceptions.
+- Raise specific project exceptions for runtime failures: the link, the car, external input.
+- For a bad argument from the calling code, raise `ValueError` or `TypeError`.
 - Do not catch an exception only to ignore it.
 
 ### Logging
