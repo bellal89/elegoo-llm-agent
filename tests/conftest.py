@@ -25,9 +25,7 @@ class FakeLink:
         self._lock = threading.Lock()
         self._incoming: queue.Queue[str] = queue.Queue()
 
-    @property
-    def resets_car(self) -> bool:
-        return False
+    resets_car = False
 
     @property
     def sent(self) -> list[str]:

@@ -21,4 +21,3 @@ line-length = 120
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests"]

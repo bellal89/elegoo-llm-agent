@@ -26,10 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class Link(typing.Protocol):
-    @property
-    def resets_car(self) -> bool:
-        """True if the UNO reboots when the link opens."""
-        ...
+    resets_car: bool
 
     def send(self, frame: str) -> None: ...
 
@@ -68,10 +65,8 @@ class SerialLink:
         self._lock = threading.Lock()
         self._frames = _FrameBuffer()
 
-    @property
-    def resets_car(self) -> bool:
-        # Opening the port toggles DTR, and DTR resets the UNO.
-        return True
+    # Opening the port toggles DTR, and DTR resets the UNO.
+    resets_car = True
 
     def send(self, frame: str) -> None:
         with self._lock:
@@ -108,9 +103,7 @@ class TcpLink:
         self._heartbeat = threading.Thread(target=self._send_heartbeats, daemon=True)
         self._heartbeat.start()
 
-    @property
-    def resets_car(self) -> bool:
-        return False
+    resets_car = False
 
     def send(self, frame: str) -> None:
         with self._lock:
