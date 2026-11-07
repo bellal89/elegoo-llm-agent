@@ -137,6 +137,7 @@ void blinkUntilHandAway() {
 // Blocks for the delay and the gyro bias, then moves forward until a stop.
 void startSelfTest() {
   motion.stop(StopReason::Cmd);
+  hw::motors({0, 0});
   reportEnded();
   blinkUntilHandAway();
   hw::led(LedColor::Blue);
