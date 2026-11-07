@@ -1,6 +1,6 @@
 PORT := /dev/cu.usbserial-1110
 
-.PHONY: init install lint format test upload hardware-test
+.PHONY: init install lint test upload hardware-test
 
 init:
 	uv python install
@@ -13,10 +13,6 @@ lint:
 	uv run ruff check
 	uv run ruff format --check
 	uv run pyright
-
-format:
-	uv run ruff check --fix
-	uv run ruff format
 
 test:
 	$(MAKE) -C firmware/test
