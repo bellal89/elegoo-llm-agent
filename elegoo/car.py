@@ -51,6 +51,7 @@ class Car:
         self._pending_dones: list[Done] = []
         self._motion: Command | None = None
         self._last_tele: Tele | None = None
+        self._tele_received = threading.Condition()
         self._imu_ok: bool | None = None
         self._stopped = threading.Event()
         self._reader = threading.Thread(target=self._read_frames, daemon=True)
@@ -114,6 +115,16 @@ class Car:
     def tele(self, period_ms: int) -> None:
         """Telemetry period: 0 = off, else 100..65535 ms."""
         self._command(Command.TELE, period_ms)
+
+    def next_tele(self, timeout_s: float) -> Tele:
+        """Waits for a telemetry frame that comes after this call."""
+        with self._tele_received:
+            previous = self._last_tele
+            self._tele_received.wait_for(lambda: self._last_tele is not previous, timeout_s)
+            tele = self._last_tele
+        if tele is None or tele is previous:
+            raise ReplyTimeoutError("no telemetry from the car")
+        return tele
 
     def wait_done(self, timeout_s: float) -> StopReason:
         """Returns the stop reason of the last motion command."""
@@ -217,7 +228,9 @@ class Car:
             case None:
                 logger.warning("Drop bad frame %s", frame)
             case Tele():
-                self._last_tele = reply
+                with self._tele_received:
+                    self._last_tele = reply
+                    self._tele_received.notify_all()
             case Ok() | Err() | Done() | ParamValue() | ImuStatus():
                 self._replies.put(reply)
 

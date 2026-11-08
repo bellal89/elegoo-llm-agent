@@ -17,3 +17,15 @@ class CommandRejectedError(ElegooError):
 
 class ReplyTimeoutError(ElegooError):
     pass
+
+
+class ProfileError(ElegooError):
+    pass
+
+
+class NoSafePwmError(ElegooError):
+    pass
+
+
+class CalibrationError(ElegooError):
+    pass

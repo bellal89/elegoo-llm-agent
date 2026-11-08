@@ -14,6 +14,7 @@ POLL_S = 0.01
 HB_FRAME = "{hb}"
 STOP_FRAME = "{stop}"
 TELE_FRAME = "{t,1234,30,45,1017,46,9000,7810,turn,none}"
+NEXT_TELE_FRAME = "{t,1334,29,45,1017,46,9100,7810,turn,none}"
 BOOT_DELAY_S = 0.2
 
 
@@ -107,6 +108,18 @@ def test_tele_updates_last_tele_after_bad_frames(link: FakeLink, car: Car) -> No
         link.push(frame)
     assert wait_until(lambda: car.last_tele is not None)
     assert car.last_tele == parse_reply(TELE_FRAME)
+
+
+def test_next_tele_waits_for_new_frame(link: FakeLink, car: Car) -> None:
+    link.push(TELE_FRAME)
+    assert wait_until(lambda: car.last_tele is not None)
+    threading.Timer(BOOT_DELAY_S, link.push, [NEXT_TELE_FRAME]).start()
+    assert car.next_tele(WAIT_S) == parse_reply(NEXT_TELE_FRAME)
+
+
+def test_next_tele_times_out(car: Car) -> None:
+    with pytest.raises(ReplyTimeoutError):
+        car.next_tele(0.1)
 
 
 def test_heartbeat_runs(link: FakeLink, car: Car) -> None:
