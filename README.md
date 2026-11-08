@@ -14,6 +14,8 @@
 | `make test` | Run the firmware and Python tests on the computer |
 | `make upload` | Compile the firmware and flash the car |
 | `make hardware-test` | Run the wired part of the hardware test |
+| `make calibrate-usb` | Calibrate the car over USB. Write the results to `profile.json`. `STEP` selects one step |
+| `make calibrate-wifi` | The same through the ESP32 Wi-Fi |
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
