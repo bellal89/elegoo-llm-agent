@@ -1,7 +1,7 @@
 PORT := /dev/cu.usbserial-1110
 STEP := all
 
-.PHONY: init install lint test upload hardware-test calibrate calibrate-tcp
+.PHONY: init install lint test upload hardware-test calibrate calibrate-wifi
 
 init:
 	uv python install
@@ -31,5 +31,5 @@ hardware-test:
 calibrate:
 	uv run python -m elegoo.calibrate --port $(PORT) $(STEP)
 
-calibrate-tcp:
+calibrate-wifi:
 	uv run python -m elegoo.calibrate --tcp $(STEP)
