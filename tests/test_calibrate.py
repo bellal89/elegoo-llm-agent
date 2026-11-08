@@ -1,6 +1,6 @@
 import pytest
 
-from elegoo.calibrate import cliff_threshold, fit_speed_cm_s, max_yaw_rate_dps, min_turning_pwm
+from elegoo.calibrate import brake_trigger, cliff_threshold, fit_speed_cm_s, max_yaw_rate_dps, min_turning_pwm
 from elegoo.errors import CalibrationError
 from elegoo.protocol import MotionKind, StopReason, Tele
 
@@ -49,6 +49,25 @@ def test_fit_speed_skips_start_and_no_echo() -> None:
     teles[0] = make_tele(1000, sonar_cm=150)
     teles[5] = make_tele(1500, sonar_cm=0)
     assert fit_speed_cm_s(teles) == pytest.approx(30.0)
+
+
+def test_fit_speed_ignores_sonar_error() -> None:
+    teles = [make_tele(ms, sonar_cm=150 - 3 * ms // 100) for ms in range(1000, 2100, 100)]
+    teles[6] = make_tele(1600, sonar_cm=58)
+    assert fit_speed_cm_s(teles) == pytest.approx(30.0, abs=1.0)
+
+
+@pytest.mark.parametrize(
+    ("sonars", "trigger_ms"),
+    [
+        pytest.param([123, 58, 114, 70, 59, 55], 500, id="sonar error"),
+        pytest.param([80, 0, 60, 57], 300, id="no echo"),
+        pytest.param([80, 70, 65], None, id="far"),
+    ],
+)
+def test_brake_trigger(sonars: list[int], trigger_ms: int | None) -> None:
+    trigger = brake_trigger(iter([make_tele(index * 100, sonar_cm=sonar) for index, sonar in enumerate(sonars)]))
+    assert (None if trigger is None else trigger.ms) == trigger_ms
 
 
 def test_fit_speed_without_samples() -> None:

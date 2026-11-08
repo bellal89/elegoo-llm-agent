@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import dataclasses
 import enum
 import itertools
@@ -71,12 +72,30 @@ def max_yaw_rate_dps(teles: list[Tele]) -> float:
 
 
 def fit_speed_cm_s(teles: list[Tele]) -> float:
-    """Fits the approach speed to the wall. Skips the acceleration and the frames without a sonar echo."""
+    """Fits the approach speed to the wall.
+
+    Skips the acceleration and the frames without a sonar echo. A median of 3 frames removes single sonar errors.
+    """
     samples = [tele for tele in teles if tele.sonar_cm != NO_ECHO_CM and tele.ms - teles[0].ms >= SPEED_SKIP_MS]
-    if len(samples) < 2:
+    points = [
+        (b.ms, statistics.median((a.sonar_cm, b.sonar_cm, c.sonar_cm)))
+        for a, b, c in zip(samples, samples[1:], samples[2:])
+    ]
+    if len(points) < 2:
         raise CalibrationError(f"only {len(samples)} speed samples")
-    fit = statistics.linear_regression([tele.ms for tele in samples], [tele.sonar_cm for tele in samples])
+    fit = statistics.linear_regression([ms for ms, _ in points], [cm for _, cm in points])
     return -fit.slope * MS_PER_S
+
+
+def brake_trigger(teles: Iterator[Tele]) -> Tele | None:
+    """Returns the second of two frames in a row near the wall. A single frame can be a sonar error."""
+    previous_near = False
+    for tele in teles:
+        near = NO_ECHO_CM < tele.sonar_cm <= BRAKE_TRIGGER_CM
+        if near and previous_near:
+            return tele
+        previous_near = near
+    return None
 
 
 def min_turning_pwm(yaw_rates: Iterator[tuple[int, float]]) -> int:
@@ -124,23 +143,23 @@ def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
 
 
 def calibrate_brake(car: Car, profile: Profile) -> Profile:
-    max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
-    brake = tuple((pwm, _brake_cm(car, pwm, max_cmd_ms=max_cmd_ms)) for pwm in _run_pwms(car))
+    with _move_pwm_restored(car):
+        brake = tuple((pwm, _brake_cm(car, pwm)) for pwm in _run_pwms(car))
     car.set_param(Param.SONAR_STOP_CM, round(max(dict(brake).values())) + SONAR_STOP_MARGIN_CM)
     return dataclasses.replace(profile, brake=brake)
 
 
 def calibrate_speed(car: Car, profile: Profile) -> Profile:
-    max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
     speed: list[tuple[int, float]] = []
     batt_mvs: list[int] = []
-    for pwm in _run_pwms(car):
-        input(f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter.")
-        car.drive(pwm, right=pwm, duration_ms=max_cmd_ms)
-        teles = list(_drive_teles(car))
-        logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
-        speed.append((pwm, fit_speed_cm_s(teles)))
-        batt_mvs.extend(tele.batt_mv for tele in teles)
+    with _move_pwm_restored(car):
+        for pwm in _run_pwms(car):
+            input(f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter.")
+            _start_wall_run(car, pwm)
+            teles = list(_motion_teles(car, MotionKind.MOVE))
+            logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
+            speed.append((pwm, fit_speed_cm_s(teles)))
+            batt_mvs.extend(tele.batt_mv for tele in teles)
     logger.info("Speed: %s", speed)
     return dataclasses.replace(profile, speed=tuple(speed), batt_mv=round(statistics.mean(batt_mvs)))
 
@@ -167,20 +186,17 @@ def _yaw_rates(car: Car, side: Side) -> Iterator[tuple[int, float]]:
                 car.drive(pwm, right=0, duration_ms=MINPWM_STEP_MS)
             case Side.RIGHT:
                 car.drive(0, right=pwm, duration_ms=MINPWM_STEP_MS)
-        teles = list(_drive_teles(car))
+        teles = list(_motion_teles(car, MotionKind.DRIVE))
         car.wait_done(DONE_TIMEOUT_S)
         rate_dps = max_yaw_rate_dps(teles)
         logger.debug("%s side at PWM %s: %s deg/s", side, pwm, rate_dps)
         yield pwm, rate_dps
 
 
-def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
+def _brake_cm(car: Car, pwm: int) -> int:
     input(f"Place the car ~150 cm from a wall for the brake run at PWM {pwm}. Press Enter.")
-    car.drive(pwm, right=pwm, duration_ms=max_cmd_ms)
-    trigger = next(
-        (tele for tele in _drive_teles(car) if NO_ECHO_CM < tele.sonar_cm <= BRAKE_TRIGGER_CM),
-        None,
-    )
+    _start_wall_run(car, pwm)
+    trigger = brake_trigger(_motion_teles(car, MotionKind.MOVE))
     if trigger is None:
         raise CalibrationError(f"car stopped before {BRAKE_TRIGGER_CM} cm: {car.wait_done(DONE_TIMEOUT_S)}")
     car.stop()
@@ -188,8 +204,11 @@ def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
     if reason is not StopReason.CMD:
         raise CalibrationError(f"car stopped by {reason}, not by the stop command")
     time.sleep(SETTLE_S)
-    brake_cm = trigger.sonar_cm - car.next_tele(TELE_TIMEOUT_S).sonar_cm
+    final_cm = car.next_tele(TELE_TIMEOUT_S).sonar_cm
+    brake_cm = trigger.sonar_cm - final_cm
     logger.info("Brake at PWM %s: %s cm", pwm, brake_cm)
+    if final_cm == NO_ECHO_CM or brake_cm <= 0:
+        raise CalibrationError(f"bad brake run: sonar {trigger.sonar_cm} cm at the stop, {final_cm} cm after it")
     return brake_cm
 
 
@@ -204,9 +223,24 @@ def _run_pwms(car: Car) -> tuple[int, int, int]:
     return RUN_PWM_LOW, (RUN_PWM_LOW + pwm_limit) // 2, pwm_limit
 
 
-def _drive_teles(car: Car) -> Iterator[Tele]:
-    """Yields telemetry until the drive ends."""
-    while (tele := car.next_tele(TELE_TIMEOUT_S)).motion is MotionKind.DRIVE:
+def _start_wall_run(car: Car, pwm: int) -> None:
+    """Moves toward the wall with heading hold. An open loop drive turns away from the wall."""
+    car.set_param(Param.MOVE_PWM, pwm)
+    car.move(int(car.params()[Param.MAX_CMD_MS]))
+
+
+@contextlib.contextmanager
+def _move_pwm_restored(car: Car) -> Iterator[None]:
+    move_pwm = car.params()[Param.MOVE_PWM]
+    try:
+        yield
+    finally:
+        car.set_param(Param.MOVE_PWM, move_pwm)
+
+
+def _motion_teles(car: Car, motion: MotionKind) -> Iterator[Tele]:
+    """Yields telemetry until the motion ends."""
+    while (tele := car.next_tele(TELE_TIMEOUT_S)).motion is motion:
         yield tele
 
 
