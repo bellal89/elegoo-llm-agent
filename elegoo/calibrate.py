@@ -27,7 +27,7 @@ MINPWM_STEP_MS = 300
 MINPWM_YAW_RATE_DPS = 10.0
 RUN_PWM_LOW = 100
 BRAKE_TRIGGER_CM = 60
-BRAKE_SETTLE_S = 0.5
+SETTLE_S = 0.5
 SONAR_STOP_MARGIN_CM = 5
 SPEED_SKIP_MS = 300
 
@@ -79,6 +79,22 @@ def fit_speed_cm_s(teles: list[Tele]) -> float:
     return -fit.slope * MS_PER_S
 
 
+def min_turning_pwm(yaw_rates: Iterator[tuple[int, float]]) -> int:
+    """Returns the first PWM where the car turns at this step and at the next one.
+
+    The first drive after a stop takes up the gear backlash: the car jumps ~1 deg once, then stands.
+    """
+    candidate: int | None = None
+    for pwm, rate_dps in yaw_rates:
+        if rate_dps <= MINPWM_YAW_RATE_DPS:
+            candidate = None
+        elif candidate is None:
+            candidate = pwm
+        else:
+            return candidate
+    raise CalibrationError("the car does not turn at two PWM steps in a row up to the PWM limit")
+
+
 def calibrate_line(car: Car, profile: Profile, *, surface: Surface) -> Profile:
     teles = [car.next_tele(TELE_TIMEOUT_S) for _ in range(LINE_SAMPLES)]
     left, middle, right = (
@@ -100,7 +116,9 @@ def calibrate_line(car: Car, profile: Profile, *, surface: Surface) -> Profile:
 
 
 def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
-    min_pwm = MinPwm(left=_min_pwm(car, Side.LEFT), right=_min_pwm(car, Side.RIGHT))
+    min_pwm = MinPwm(
+        left=min_turning_pwm(_yaw_rates(car, Side.LEFT)), right=min_turning_pwm(_yaw_rates(car, Side.RIGHT))
+    )
     logger.info("Min PWM: %s", min_pwm)
     return dataclasses.replace(profile, min_pwm=min_pwm)
 
@@ -140,9 +158,10 @@ def calibrate_all(car: Car) -> None:
     _update_profile(lambda profile: calibrate_speed(car, profile))
 
 
-def _min_pwm(car: Car, side: Side) -> int:
-    pwm_limit = _pwm_limit(car)
-    for pwm in range(MINPWM_START, pwm_limit + 1, MINPWM_STEP):
+def _yaw_rates(car: Car, side: Side) -> Iterator[tuple[int, float]]:
+    """Drives one side with rising PWM. Yields the max yaw rate per PWM step."""
+    time.sleep(SETTLE_S)
+    for pwm in range(MINPWM_START, _pwm_limit(car) + 1, MINPWM_STEP):
         match side:
             case Side.LEFT:
                 car.drive(pwm, right=0, duration_ms=MINPWM_STEP_MS)
@@ -150,9 +169,9 @@ def _min_pwm(car: Car, side: Side) -> int:
                 car.drive(0, right=pwm, duration_ms=MINPWM_STEP_MS)
         teles = list(_drive_teles(car))
         car.wait_done(DONE_TIMEOUT_S)
-        if max_yaw_rate_dps(teles) > MINPWM_YAW_RATE_DPS:
-            return pwm
-    raise CalibrationError(f"{side} side does not move at PWM {pwm_limit}")
+        rate_dps = max_yaw_rate_dps(teles)
+        logger.debug("%s side at PWM %s: %s deg/s", side, pwm, rate_dps)
+        yield pwm, rate_dps
 
 
 def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
@@ -168,7 +187,7 @@ def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
     reason = car.wait_done(DONE_TIMEOUT_S)
     if reason is not StopReason.CMD:
         raise CalibrationError(f"car stopped by {reason}, not by the stop command")
-    time.sleep(BRAKE_SETTLE_S)
+    time.sleep(SETTLE_S)
     brake_cm = trigger.sonar_cm - car.next_tele(TELE_TIMEOUT_S).sonar_cm
     logger.info("Brake at PWM %s: %s cm", pwm, brake_cm)
     return brake_cm

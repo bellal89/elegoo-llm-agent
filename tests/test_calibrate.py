@@ -1,6 +1,6 @@
 import pytest
 
-from elegoo.calibrate import cliff_threshold, fit_speed_cm_s, max_yaw_rate_dps
+from elegoo.calibrate import cliff_threshold, fit_speed_cm_s, max_yaw_rate_dps, min_turning_pwm
 from elegoo.errors import CalibrationError
 from elegoo.protocol import MotionKind, StopReason, Tele
 
@@ -54,3 +54,26 @@ def test_fit_speed_skips_start_and_no_echo() -> None:
 def test_fit_speed_without_samples() -> None:
     with pytest.raises(CalibrationError):
         fit_speed_cm_s([make_tele(0), make_tele(100), make_tele(300, sonar_cm=0)])
+
+
+@pytest.mark.parametrize(
+    ("yaw_rates", "pwm"),
+    [
+        pytest.param([(30, 12.0), (35, 0.1), (40, 1.7), (45, 0.2), (50, 16.3), (55, 25.9)], 50, id="backlash jolt"),
+        pytest.param([(30, 15.0), (35, 20.0)], 30, id="turns at once"),
+    ],
+)
+def test_min_turning_pwm(yaw_rates: list[tuple[int, float]], pwm: int) -> None:
+    assert min_turning_pwm(iter(yaw_rates)) == pwm
+
+
+@pytest.mark.parametrize(
+    "yaw_rates",
+    [
+        pytest.param([(30, 0.0), (35, 0.5)], id="no turn"),
+        pytest.param([(30, 0.0), (35, 15.0)], id="turn only at the last step"),
+    ],
+)
+def test_min_turning_pwm_without_turn(yaw_rates: list[tuple[int, float]]) -> None:
+    with pytest.raises(CalibrationError):
+        min_turning_pwm(iter(yaw_rates))
