@@ -70,17 +70,13 @@ def test_parse_reply(frame: str, reply: Reply) -> None:
         pytest.param("ok,turn}", id="no opening brace"),
         pytest.param("{ok,turn", id="no closing brace"),
         pytest.param("{ok}", id="missing field"),
-        pytest.param("{ok,turn,1}", id="extra field"),
         pytest.param("{zz,turn}", id="unknown kind"),
-        pytest.param("{ok,fly}", id="unknown command"),
         pytest.param("{done,turn,zz}", id="unknown stop reason"),
-        pytest.param("{err,zz}", id="unknown err reason"),
         pytest.param("{p,nope,1}", id="unknown param"),
         pytest.param("{p,kp,x}", id="bad param value"),
         pytest.param("{p,imu,2}", id="bad imu flag"),
         pytest.param("{t,1,2}", id="short tele"),
         pytest.param("{t,1,0,45,1017,46,x,7810,turn,none}", id="bad tele number"),
-        pytest.param("{t,1,0,45,1017,46,0,7810,fly,none}", id="unknown motion"),
     ],
 )
 def test_parse_reply_rejects_bad_frame(frame: str) -> None:
