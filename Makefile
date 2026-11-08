@@ -1,6 +1,7 @@
 PORT := /dev/cu.usbserial-1110
+STEP := all
 
-.PHONY: init install lint test upload hardware-test
+.PHONY: init install lint test upload hardware-test calibrate calibrate-tcp
 
 init:
 	uv python install
@@ -25,3 +26,10 @@ upload:
 
 hardware-test:
 	uv run tools/hardware_test_wired.py --port $(PORT)
+
+# STEP: gyro, line floor, line edge, minpwm, brake, speed or all. Example: make calibrate STEP="line floor".
+calibrate:
+	uv run python -m elegoo.calibrate --port $(PORT) $(STEP)
+
+calibrate-tcp:
+	uv run python -m elegoo.calibrate --tcp $(STEP)

@@ -107,7 +107,7 @@ class ImuStatus:
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class PwmLimit:
-    """The firmware hard PWM limit. Read only."""
+    """The firmware hard PWM limit. The host cannot change it."""
 
     value: int
 
