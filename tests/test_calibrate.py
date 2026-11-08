@@ -22,6 +22,7 @@ ALL_SENSORS = 7
 WALL_RUN_GET = ["{p,move_pwm,90}", "{p,max_cmd_ms,5000}", "{p,pwm_limit,150}", "{p,imu,1}", "{ok,get}"]
 WALL_RUN_MOVE = "{move,5000}"
 RESTORE_MOVE_PWM = "{set,move_pwm,90}"
+HB_FRAME = "{hb}"
 STOP_BY_CMD = ["{ok,stop}", "{done,move,cmd}"]
 
 
@@ -134,7 +135,8 @@ def test_min_turning_pwm_rejects_turn_only_at_last_step() -> None:
 def test_calibrate_brake_sets_sonar_stop_cm(wall_run_link: FakeLink, car: Car) -> None:
     wall_run_link.streams[WALL_RUN_MOVE] = brake_run(trigger_cm=55, final_cm=45)
     assert calibrate_brake(car, Profile()).brake == ((100, 10.0), (125, 10.0), (150, 10.0))
-    assert wall_run_link.sent[-2:] == [RESTORE_MOVE_PWM, "{set,sonar_stop_cm,15}"]
+    sent = [frame for frame in wall_run_link.sent if frame != HB_FRAME]
+    assert sent[-2:] == [RESTORE_MOVE_PWM, "{set,sonar_stop_cm,15}"]
 
 
 @pytest.mark.parametrize(

@@ -10,6 +10,7 @@ from elegoo.protocol import ErrReason, Param, StopReason, parse_reply
 from tests.conftest import FakeLink
 
 WAIT_S = 1.0
+NO_TELE_TIMEOUT_S = 0.1
 POLL_S = 0.01
 HB_FRAME = "{hb}"
 STOP_FRAME = "{stop}"
@@ -130,7 +131,7 @@ def test_next_tele_waits_for_new_frame(link: FakeLink, car: Car) -> None:
 
 def test_next_tele_times_out(car: Car) -> None:
     with pytest.raises(ReplyTimeoutError):
-        car.next_tele(0.1)
+        car.next_tele(NO_TELE_TIMEOUT_S)
 
 
 def test_heartbeat_runs(link: FakeLink, car: Car) -> None:
