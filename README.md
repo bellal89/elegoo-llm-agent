@@ -117,7 +117,16 @@ Main result: a "model × metric" table on one task set. Live runs are expensive 
 
 The small model is fine-tuned with LoRA on frames from the project's runs. A teacher model labels the frames: step done or not, obstacle or not, target position in the frame. A separate test checks a hybrid: the large model plans, the small model checks the steps.
 
-**Task set** (10–20 reps each):
+Related work reports that fine-tuned failure detectors can be worse than general VLMs. Thus "the small model checks steps worse" is also a valid result.
+
+**Baselines:**
+
+- classic CV without a model: color or ArUco detection and PID; shows if a VLM is necessary;
+- zero-shot VLM policy: the model selects an action directly from the frame, without a plan.
+
+Before live runs, select the local models on Point-Bench for target pointing.
+
+**Task set** (max 20 reps each):
 
 - drive to a colored object;
 - go around an obstacle and return to the course;
@@ -125,14 +134,18 @@ The small model is fine-tuned with LoRA on frames from the project's runs. A tea
 - park between two boxes;
 - multi-step: drive to the door, turn around, return to the start.
 
-**Metrics:** task success rate, execution time, number of operator interventions, collisions, decision latency (p50 and p95, ms), cost per task.
+**Metrics:** task success rate, SPL (success weighted by path length), execution time, number of operator interventions, collisions, decision latency (p50 and p95, ms), output tokens per decision, cost per task.
 
 **Two evaluation modes:**
 
 - offline replay: the models make decisions on the same recorded frames and telemetry; reproducible and cheap;
 - live runs: final check in a closed loop.
 
-With 10–20 runs per task, only a large difference in success rate is visible. Thus each rate needs a confidence interval, for example Wilson.
+Offline errors do not accumulate, live errors do. Thus the report gives the correlation of the model ranks between the two modes.
+
+With max 20 runs per task, only a large difference in success rate is visible. Thus the live comparison uses a sequential test (STEP): stop the runs when the difference is significant. Each rate has a Wilson confidence interval.
+
+Related work and its relation to the project: [docs/papers/README.md](docs/papers/README.md).
 
 ## Techniques and technologies
 
@@ -156,6 +169,6 @@ Each stage ends with a result that you can check.
 - [ ] **Onboard safety.** Watchdog, sonar stop, behavior interpreter. Done when model latency cannot cause a collision.
 - [ ] **Calibration.** Tests and profile from the section above. Target: 90° turn with an error of max 10°.
 - [ ] **Agent and dashboard.** Plan, step checks, replanning, MCP server, web UI with video and chat.
-- [ ] **Task set and baseline.** Five tasks, live runs with the proprietary model, offline replay of the recordings.
-- [ ] **Open and fine-tuned models.** Local inference, teacher labels, LoRA, comparison of the three variants and the hybrid.
-- [ ] **Report and demo.** Results table with intervals and a short video of a command execution.
+- [ ] **Task set and baselines.** Five tasks, live runs with the proprietary model, the classic CV and the zero-shot VLM baselines, offline replay of the recordings.
+- [ ] **Open and fine-tuned models.** Selection on Point-Bench, local inference, teacher labels, LoRA, comparison of the three variants and the hybrid with the sequential test.
+- [ ] **Report and demo.** Results table with intervals, offline–live rank correlation and a short video of a command execution.
