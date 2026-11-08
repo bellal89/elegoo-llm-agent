@@ -7,7 +7,7 @@ import time
 import types
 import typing
 
-from elegoo.errors import CommandRejectedError, ReplyTimeoutError
+from elegoo.errors import CommandRejectedError, LinkError, ReplyTimeoutError
 from elegoo.link import Link, SerialLink, TcpLink
 from elegoo.protocol import (
     FAST_FLAG,
@@ -145,7 +145,13 @@ class Car:
         self._reader.start()
         if self._link.resets_car:
             self._wait_boot()
-        self.set_param(Param.HB_MS, hb_ms)
+        try:
+            self.set_param(Param.HB_MS, hb_ms)
+        except ReplyTimeoutError as error:
+            # A boot report came, so only the UNO RX is cut off: S1 routes it to the ESP32.
+            if self._link.resets_car:
+                raise LinkError('the car sends but does not receive. Set switch S1 to "upload".') from error
+            raise
         self._heartbeat.start()
         self.params()
 

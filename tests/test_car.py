@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from elegoo.car import HB_MS_SERIAL, Car
-from elegoo.errors import CommandRejectedError, ReplyTimeoutError
+from elegoo.errors import CommandRejectedError, LinkError, ReplyTimeoutError
 from elegoo.protocol import ErrReason, Param, StopReason, parse_reply
 from tests.conftest import FakeLink
 
@@ -40,6 +40,14 @@ def test_start_waits_for_boot_report(link: FakeLink) -> None:
     start_s = time.monotonic()
     with Car(link, HB_MS_SERIAL):
         assert time.monotonic() - start_s >= BOOT_DELAY_S
+
+
+def test_start_reports_car_that_does_not_receive(link: FakeLink) -> None:
+    link.resets_car = True
+    link.push("{p,imu,1}")
+    del link.script["{set,hb_ms,300}"]
+    with pytest.raises(LinkError, match="S1"):
+        Car(link, HB_MS_SERIAL)
 
 
 def test_failed_start_closes_link(link: FakeLink) -> None:
