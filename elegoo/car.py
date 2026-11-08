@@ -36,8 +36,8 @@ TURN_DONE_TIMEOUT_S = 6.0
 
 logger = logging.getLogger(__name__)
 
-type CommandReply = Ok | Err | Done | ParamValue | ImuStatus | PwmLimit
 type ParamReply = ParamValue | ImuStatus | PwmLimit
+type CommandReply = Ok | Err | Done | ParamReply
 
 
 class CliCommand(enum.StrEnum):
@@ -89,7 +89,7 @@ class Car:
         self.close()
 
     def drive(self, left: int, *, right: int, duration_ms: int) -> None:
-        """PWM -150..150 per side, capped by max_pwm, open loop."""
+        """PWM per side within ±pwm_limit, capped by max_pwm, open loop."""
         self._start_motion(Command.DRIVE, left, right, duration_ms)
 
     def move(self, duration_ms: int) -> None:

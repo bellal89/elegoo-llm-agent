@@ -82,7 +82,7 @@ def fit_speed_cm_s(teles: list[Tele]) -> float:
         for a, b, c in zip(samples, samples[1:], samples[2:])
     ]
     if len(points) < 2:
-        raise CalibrationError(f"only {len(samples)} speed samples")
+        raise CalibrationError(f"only {len(points)} speed points")
     fit = statistics.linear_regression([ms for ms, _ in points], [cm for _, cm in points])
     return -fit.slope * MS_PER_S
 
@@ -145,7 +145,7 @@ def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
 def calibrate_brake(car: Car, profile: Profile) -> Profile:
     with _move_pwm_restored(car):
         brake = tuple((pwm, _brake_cm(car, pwm)) for pwm in _run_pwms(car))
-    car.set_param(Param.SONAR_STOP_CM, round(max(dict(brake).values())) + SONAR_STOP_MARGIN_CM)
+    car.set_param(Param.SONAR_STOP_CM, round(max(cm for _, cm in brake)) + SONAR_STOP_MARGIN_CM)
     return dataclasses.replace(profile, brake=brake)
 
 
