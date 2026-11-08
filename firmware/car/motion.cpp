@@ -3,7 +3,6 @@
 namespace {
 
 constexpr Out kStopped = {0, 0};
-constexpr int16_t kFastPwmCap = 255;
 
 int16_t clampSigned(int16_t value, int16_t cap) {
   if (value > cap) {
@@ -82,8 +81,10 @@ Out Motion::step(uint32_t now_ms, float yaw_deg) {
   switch (kind_) {
     case MotionKind::Idle:
       return kStopped;
-    case MotionKind::Drive:
-      return stepTimed(now_ms, {clampSigned(cmd_.left, pwmCap()), clampSigned(cmd_.right, pwmCap())});
+    case MotionKind::Drive: {
+      int16_t cap = pwm(Param::MaxPwm);
+      return stepTimed(now_ms, {clampSigned(cmd_.left, cap), clampSigned(cmd_.right, cap)});
+    }
     case MotionKind::Move:
       return stepMove(now_ms, yaw_deg);
     case MotionKind::Turn:
@@ -178,7 +179,7 @@ Out Motion::stepTimed(uint32_t now_ms, Out out) {
 Out Motion::stepMove(uint32_t now_ms, float yaw_deg) {
   float correction = params_.get(Param::Kp) * (yaw_deg - ref_yaw_deg_);
   float move_pwm = params_.get(Param::MovePwm);
-  int16_t cap = pwmCap();
+  int16_t cap = pwm(Param::MaxPwm);
   return stepTimed(now_ms, {clampForward(move_pwm - correction, cap), clampForward(move_pwm + correction, cap)});
 }
 
@@ -207,5 +208,3 @@ Out Motion::stepBack(uint32_t now_ms) {
 }
 
 int16_t Motion::pwm(Param param) const { return static_cast<int16_t>(params_.get(param)); }
-
-int16_t Motion::pwmCap() const { return cmd_.fast ? kFastPwmCap : pwm(Param::MaxPwm); }

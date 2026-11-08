@@ -2,7 +2,6 @@ import dataclasses
 import enum
 
 FRAME_MAX_LEN = 32
-FAST_FLAG = "f"
 IMU_KEY = "imu"
 IMU_OK = "1"
 IMU_FAIL = "0"

@@ -9,7 +9,6 @@ constexpr char kFrameStart = '{';
 constexpr char kFrameEnd = '}';
 constexpr char kFieldSeparator = ',';
 constexpr uint8_t kMaxFields = 5;
-constexpr const char* kFastFlag = "f";
 constexpr const char* kBridgeStop = "\"N\":100";
 constexpr const char* kIgnoredFrames[] = {"Factory", "WA_OK", "WA_NO"};
 constexpr CmdType kHostCommands[] = {
@@ -17,7 +16,6 @@ constexpr CmdType kHostCommands[] = {
     CmdType::Gyro, CmdType::Tele, CmdType::Set,   CmdType::Get,
 };
 
-constexpr long kPwmLimit = 255;
 constexpr long kMsMin = 1;
 constexpr long kMsMax = 65535;
 constexpr long kDegLimit = 360;
@@ -74,24 +72,12 @@ bool parseFloat(const char* text, float& out) {
   return true;
 }
 
-bool parseFastFlag(char* const fields[], uint8_t count, uint8_t baseCount, bool& fast) {
-  if (count == baseCount) {
-    fast = false;
-    return true;
-  }
-  if (count == baseCount + 1 && strcmp(fields[baseCount], kFastFlag) == 0) {
-    fast = true;
-    return true;
-  }
-  return false;
-}
-
 Cmd parseDrive(char* const fields[], uint8_t count) {
   Cmd cmd = makeCmd(CmdType::Drive);
   long left = 0;
   long right = 0;
   long ms = 0;
-  if (!parseFastFlag(fields, count, 4, cmd.fast) ||
+  if (count != 4 ||
       !parseLong(fields[1], -kPwmLimit, kPwmLimit, left) ||
       !parseLong(fields[2], -kPwmLimit, kPwmLimit, right) ||
       !parseLong(fields[3], kMsMin, kMsMax, ms)) {
@@ -106,7 +92,7 @@ Cmd parseDrive(char* const fields[], uint8_t count) {
 Cmd parseMove(char* const fields[], uint8_t count) {
   Cmd cmd = makeCmd(CmdType::Move);
   long ms = 0;
-  if (!parseFastFlag(fields, count, 2, cmd.fast) || !parseLong(fields[1], kMsMin, kMsMax, ms)) {
+  if (count != 2 || !parseLong(fields[1], kMsMin, kMsMax, ms)) {
     return makeErr(ErrReason::Frame);
   }
   cmd.ms = static_cast<uint16_t>(ms);

@@ -79,11 +79,6 @@ def test_wait_done_keeps_done_received_during_other_command(link: FakeLink, car:
     assert car.wait_done(WAIT_S) is StopReason.SONAR
 
 
-def test_drive_sends_fast_flag(link: FakeLink, car: Car) -> None:
-    link.script["{drive,100,-100,500,f}"] = ["{ok,drive}"]
-    car.drive(100, right=-100, duration_ms=500, fast=True)
-
-
 def test_wait_done_times_out(link: FakeLink, car: Car) -> None:
     link.script["{turn,90}"] = ["{ok,turn}"]
     car.turn(90)

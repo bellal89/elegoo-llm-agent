@@ -22,17 +22,16 @@ LINE_SAMPLES = 20
 LINE_SENSORS = 3
 NO_ECHO_CM = 0
 MINPWM_START = 30
-MINPWM_STOP = 160
+MINPWM_STOP = 150
 MINPWM_STEP = 5
 MINPWM_STEP_MS = 300
 MINPWM_YAW_RATE_DPS = 10.0
-RUN_PWMS = (100, 130, 160)
+RUN_PWMS = (100, 125, 150)
 BRAKE_TRIGGER_CM = 60
 BRAKE_SETTLE_S = 0.5
 SONAR_STOP_MARGIN_CM = 5
-# A cliff stop brakes by reversing, so the coasting brake distance does not apply.
-# Table edge test 2026-11-07: the car stops ~2 cm past the line sensors at PWM 150, 6 cm before the front wheels.
-CLIFF_SAFE_PWM = 150
+# The firmware PWM limit. Calibration runs up to it.
+MAX_PWM = 150
 SPEED_SKIP_MS = 300
 
 logger = logging.getLogger(__name__)
@@ -112,10 +111,8 @@ def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
 def calibrate_brake(car: Car, profile: Profile) -> Profile:
     max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
     brake = tuple((pwm, _brake_cm(car, pwm, max_cmd_ms=max_cmd_ms)) for pwm in RUN_PWMS)
-    profile = dataclasses.replace(profile, brake=brake)
-    car.set_param(Param.MAX_PWM, CLIFF_SAFE_PWM)
     car.set_param(Param.SONAR_STOP_CM, round(max(dict(brake).values())) + SONAR_STOP_MARGIN_CM)
-    return profile
+    return dataclasses.replace(profile, brake=brake)
 
 
 def calibrate_speed(car: Car, profile: Profile) -> Profile:
@@ -124,7 +121,7 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
     batt_mvs: list[int] = []
     for pwm in RUN_PWMS:
         input(f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter.")
-        car.drive(pwm, right=pwm, duration_ms=max_cmd_ms, fast=True)
+        car.drive(pwm, right=pwm, duration_ms=max_cmd_ms)
         teles = list(_drive_teles(car))
         logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
         speed.append((pwm, fit_speed_cm_s(teles)))
@@ -150,9 +147,9 @@ def _min_pwm(car: Car, side: Side) -> int:
     for pwm in range(MINPWM_START, MINPWM_STOP + 1, MINPWM_STEP):
         match side:
             case Side.LEFT:
-                car.drive(pwm, right=0, duration_ms=MINPWM_STEP_MS, fast=True)
+                car.drive(pwm, right=0, duration_ms=MINPWM_STEP_MS)
             case Side.RIGHT:
-                car.drive(0, right=pwm, duration_ms=MINPWM_STEP_MS, fast=True)
+                car.drive(0, right=pwm, duration_ms=MINPWM_STEP_MS)
         teles = list(_drive_teles(car))
         car.wait_done(DONE_TIMEOUT_S)
         if max_yaw_rate_dps(teles) > MINPWM_YAW_RATE_DPS:
@@ -162,7 +159,7 @@ def _min_pwm(car: Car, side: Side) -> int:
 
 def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
     input(f"Place the car ~150 cm from a wall for the brake run at PWM {pwm}. Press Enter.")
-    car.drive(pwm, right=pwm, duration_ms=max_cmd_ms, fast=True)
+    car.drive(pwm, right=pwm, duration_ms=max_cmd_ms)
     trigger = next(
         (tele for tele in _drive_teles(car) if NO_ECHO_CM < tele.sonar_cm <= BRAKE_TRIGGER_CM),
         None,
@@ -199,13 +196,14 @@ def main() -> None:
     line = steps.add_parser(Step.LINE, help="measure the line sensor levels, motors off")
     line.add_argument("surface", choices=list(Surface))
     steps.add_parser(Step.MINPWM, help="find the min start PWM per side")
-    steps.add_parser(Step.BRAKE, help="measure the braking distance to a wall, set sonar_stop_cm and max_pwm")
+    steps.add_parser(Step.BRAKE, help="measure the braking distance to a wall, set sonar_stop_cm")
     steps.add_parser(Step.SPEED, help="measure the speed toward a wall")
     steps.add_parser(Step.ALL, help="run all steps in order")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
     with Car(TcpLink(), HB_MS_TCP) if args.tcp else Car(SerialLink(args.port), HB_MS_SERIAL) as car:
+        car.set_param(Param.MAX_PWM, MAX_PWM)
         car.tele(TELE_PERIOD_MS)
         match Step(args.step):
             case Step.GYRO:

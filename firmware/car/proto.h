@@ -44,7 +44,6 @@ struct Cmd {
   uint16_t period_ms;
   Param param;
   float value;
-  bool fast;
   ErrReason err;
 };
 

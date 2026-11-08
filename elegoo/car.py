@@ -10,7 +10,6 @@ import typing
 from elegoo.errors import CommandRejectedError, LinkError, ReplyTimeoutError
 from elegoo.link import Link, SerialLink, TcpLink
 from elegoo.protocol import (
-    FAST_FLAG,
     Command,
     Done,
     Err,
@@ -81,12 +80,12 @@ class Car:
     ) -> None:
         self.close()
 
-    def drive(self, left: int, *, right: int, duration_ms: int, fast: bool = False) -> None:
-        """PWM -255..255 per side, open loop."""
-        self._start_motion(Command.DRIVE, left, right, duration_ms, *self._fast_args(fast))
+    def drive(self, left: int, *, right: int, duration_ms: int) -> None:
+        """PWM -150..150 per side, capped by max_pwm, open loop."""
+        self._start_motion(Command.DRIVE, left, right, duration_ms)
 
-    def move(self, duration_ms: int, *, fast: bool = False) -> None:
-        self._start_motion(Command.MOVE, duration_ms, *self._fast_args(fast))
+    def move(self, duration_ms: int) -> None:
+        self._start_motion(Command.MOVE, duration_ms)
 
     def turn(self, deg: int) -> None:
         """Positive deg turns right."""
@@ -167,9 +166,6 @@ class Car:
         while not isinstance(reply := self._next_reply(deadline_s, expected="boot report"), ImuStatus):
             logger.debug("Drop boot %s", reply)
         self._imu_ok = reply.ok
-
-    def _fast_args(self, fast: bool) -> tuple[str, ...]:
-        return (FAST_FLAG,) if fast else ()
 
     def _start_motion(self, command: Command, *args: int | str) -> None:
         self._command(command, *args)

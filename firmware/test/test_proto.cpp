@@ -32,23 +32,23 @@ static bool isFrameErr(const char* text) {
 }
 
 static void testDrive() {
-  Cmd cmd = parseOne("{drive,255,-255,65535}");
+  Cmd cmd = parseOne("{drive,150,-150,65535}");
   CHECK(cmd.type == CmdType::Drive);
-  CHECK(cmd.left == 255);
-  CHECK(cmd.right == -255);
+  CHECK(cmd.left == 150);
+  CHECK(cmd.right == -150);
   CHECK(cmd.ms == 65535);
-  CHECK(!cmd.fast);
 
-  CHECK(parseOne("{drive,200,200,500,f}").fast);
+  CHECK(isFrameErr("{drive,151,0,500}"));
+  CHECK(isFrameErr("{drive,0,-151,500}"));
+  CHECK(isFrameErr("{drive,100,100,500,f}"));
 }
 
 static void testMove() {
   Cmd cmd = parseOne("{move,1}");
   CHECK(cmd.type == CmdType::Move);
   CHECK(cmd.ms == 1);
-  CHECK(!cmd.fast);
 
-  CHECK(parseOne("{move,1500,f}").fast);
+  CHECK(isFrameErr("{move,1500,f}"));
 }
 
 static void testTurn() {

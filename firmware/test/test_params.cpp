@@ -18,8 +18,17 @@ static void testNanOutOfRange() {
   CHECK(!paramInRange(Param::Kp, NAN));
 }
 
+static void testPwmLimit() {
+  const Param pwm_params[] = {Param::MaxPwm, Param::MovePwm, Param::TurnPwm, Param::TurnSlowPwm, Param::BackPwm};
+  for (Param param : pwm_params) {
+    CHECK(paramInRange(param, kPwmLimit));
+    CHECK(!paramInRange(param, kPwmLimit + 1));
+  }
+}
+
 int main() {
   testParamNames();
   testNanOutOfRange();
+  testPwmLimit();
   return checkSummary("test_params");
 }
