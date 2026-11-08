@@ -21,7 +21,7 @@ DONE_TIMEOUT_S = 1.0
 LINE_SAMPLES = 20
 LINE_SENSORS = 3
 NO_ECHO_CM = 0
-MINPWM_START = 60
+MINPWM_START = 30
 MINPWM_STOP = 160
 MINPWM_STEP = 5
 MINPWM_STEP_MS = 300
@@ -30,6 +30,9 @@ RUN_PWMS = (100, 130, 160)
 BRAKE_TRIGGER_CM = 60
 BRAKE_SETTLE_S = 0.5
 SONAR_STOP_MARGIN_CM = 5
+# A cliff stop brakes by reversing, so the coasting brake distance does not apply.
+# Table edge test 2026-11-07: the car stops ~2 cm past the line sensors at PWM 150, 6 cm before the front wheels.
+CLIFF_SAFE_PWM = 150
 SPEED_SKIP_MS = 300
 
 logger = logging.getLogger(__name__)
@@ -38,7 +41,6 @@ logger = logging.getLogger(__name__)
 class Step(enum.StrEnum):
     GYRO = "gyro"
     LINE = "line"
-    WHEEL = "wheel"
     MINPWM = "minpwm"
     BRAKE = "brake"
     SPEED = "speed"
@@ -111,7 +113,7 @@ def calibrate_brake(car: Car, profile: Profile) -> Profile:
     max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
     brake = tuple((pwm, _brake_cm(car, pwm, max_cmd_ms=max_cmd_ms)) for pwm in RUN_PWMS)
     profile = dataclasses.replace(profile, brake=brake)
-    car.set_param(Param.MAX_PWM, profile.cliff_safe_pwm())
+    car.set_param(Param.MAX_PWM, CLIFF_SAFE_PWM)
     car.set_param(Param.SONAR_STOP_CM, round(max(dict(brake).values())) + SONAR_STOP_MARGIN_CM)
     return profile
 
@@ -136,10 +138,8 @@ def calibrate_all(car: Car) -> None:
     car.gyro()
     input("Keep the car on the floor for the floor line levels. Press Enter.")
     _update_profile(lambda profile: calibrate_line(car, profile, surface=Surface.FLOOR))
-    input("Put the car on a table with the line sensors over the edge. Press Enter.")
+    input("Put the car on a table: wheels on the table, line sensors in the air over the edge. Press Enter.")
     _update_profile(lambda profile: calibrate_line(car, profile, surface=Surface.EDGE))
-    cm = float(input("Enter the distance from the line sensors to the front wheels in cm: "))
-    _update_profile(lambda profile: dataclasses.replace(profile, sensor_to_wheel_cm=cm))
     input("Put the car on the floor with free space around it for the min PWM runs. Press Enter.")
     _update_profile(lambda profile: calibrate_minpwm(car, profile))
     _update_profile(lambda profile: calibrate_brake(car, profile))
@@ -198,10 +198,8 @@ def main() -> None:
     steps.add_parser(Step.GYRO, help="measure the gyro bias")
     line = steps.add_parser(Step.LINE, help="measure the line sensor levels, motors off")
     line.add_argument("surface", choices=list(Surface))
-    wheel = steps.add_parser(Step.WHEEL, help="store the distance from the line sensors to the front wheels")
-    wheel.add_argument("cm", type=float)
     steps.add_parser(Step.MINPWM, help="find the min start PWM per side")
-    steps.add_parser(Step.BRAKE, help="measure the braking distance, set max_pwm and sonar_stop_cm")
+    steps.add_parser(Step.BRAKE, help="measure the braking distance to a wall, set sonar_stop_cm and max_pwm")
     steps.add_parser(Step.SPEED, help="measure the speed toward a wall")
     steps.add_parser(Step.ALL, help="run all steps in order")
     args = parser.parse_args()
@@ -214,8 +212,6 @@ def main() -> None:
                 car.gyro()
             case Step.LINE:
                 _update_profile(lambda profile: calibrate_line(car, profile, surface=Surface(args.surface)))
-            case Step.WHEEL:
-                _update_profile(lambda profile: dataclasses.replace(profile, sensor_to_wheel_cm=args.cm))
             case Step.MINPWM:
                 _update_profile(lambda profile: calibrate_minpwm(car, profile))
             case Step.BRAKE:

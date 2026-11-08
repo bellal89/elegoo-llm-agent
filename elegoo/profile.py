@@ -4,9 +4,7 @@ import json
 from pathlib import Path
 
 from elegoo.car import MS_PER_S
-from elegoo.errors import NoSafePwmError, ProfileError
-
-CLIFF_MARGIN_CM = 1.0
+from elegoo.errors import ProfileError
 
 type Table = tuple[tuple[int, float], ...]
 type LineSample = tuple[int, int, int]
@@ -33,23 +31,12 @@ class Profile:
     speed: Table | None = None
     brake: Table | None = None
     line: LineLevels | None = None
-    sensor_to_wheel_cm: float | None = None
 
     def ms_for_cm(self, cm: float, *, pwm: int, batt_mv: int) -> int:
         if self.speed is None or self.batt_mv is None:
             raise ProfileError("profile has no speed calibration")
         cm_s = self._table_speed(self.speed, pwm) * batt_mv / self.batt_mv
         return round(cm / cm_s * MS_PER_S)
-
-    def cliff_safe_pwm(self, margin_cm: float = CLIFF_MARGIN_CM) -> int:
-        """Returns the highest PWM that brakes before the front wheels reach a cliff."""
-        if self.brake is None or self.sensor_to_wheel_cm is None:
-            raise ProfileError("profile has no brake or wheel calibration")
-        limit_cm = self.sensor_to_wheel_cm - margin_cm
-        safe = [pwm for pwm, brake_cm in self.brake if brake_cm < limit_cm]
-        if not safe:
-            raise NoSafePwmError(f"no PWM brakes within {limit_cm} cm")
-        return max(safe)
 
     def _table_speed(self, speed: Table, pwm: int) -> float:
         speeds = dict(speed)
@@ -77,7 +64,6 @@ def load_profile(path: Path) -> Profile:
         speed=_parse_table(data.get("speed")),
         brake=_parse_table(data.get("brake")),
         line=_parse_line(data.get("line")),
-        sensor_to_wheel_cm=_parse_float(data.get("sensor_to_wheel_cm")),
     )
 
 
@@ -93,16 +79,6 @@ def _parse_int(value: object) -> int | None:
             return value
         case _:
             raise ProfileError(f"bad integer {value}")
-
-
-def _parse_float(value: object) -> float | None:
-    match value:
-        case None:
-            return None
-        case int() | float():
-            return float(value)
-        case _:
-            raise ProfileError(f"bad number {value}")
 
 
 def _parse_min_pwm(value: object) -> MinPwm | None:

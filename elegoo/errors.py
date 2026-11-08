@@ -23,9 +23,5 @@ class ProfileError(ElegooError):
     pass
 
 
-class NoSafePwmError(ElegooError):
-    pass
-
-
 class CalibrationError(ElegooError):
     pass

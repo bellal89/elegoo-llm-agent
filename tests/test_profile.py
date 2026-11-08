@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from elegoo.errors import NoSafePwmError, ProfileError
+from elegoo.errors import ProfileError
 from elegoo.profile import LineLevels, MinPwm, Profile, load_profile, save_profile
 
 SPEED = ((100, 20.0), (160, 50.0))
@@ -16,7 +16,6 @@ def make_profile() -> Profile:
         speed=SPEED,
         brake=BRAKE,
         line=LineLevels(floor=(1017, 45, 46), edge=(1017, 1010, 1012)),
-        sensor_to_wheel_cm=6.0,
     )
 
 
@@ -44,28 +43,6 @@ def test_ms_for_cm(pwm: int, batt_mv: int, ms: int) -> None:
 def test_ms_for_cm_rejects(profile: Profile, pwm: int) -> None:
     with pytest.raises(ProfileError):
         profile.ms_for_cm(100, pwm=pwm, batt_mv=7400)
-
-
-@pytest.mark.parametrize(
-    ("sensor_to_wheel_cm", "pwm"),
-    [
-        pytest.param(6.0, 130, id="middle"),
-        pytest.param(8.0, 160, id="all"),
-    ],
-)
-def test_cliff_safe_pwm(sensor_to_wheel_cm: float, pwm: int) -> None:
-    profile = Profile(brake=BRAKE, sensor_to_wheel_cm=sensor_to_wheel_cm)
-    assert profile.cliff_safe_pwm() == pwm
-
-
-def test_cliff_safe_pwm_without_safe_pwm() -> None:
-    with pytest.raises(NoSafePwmError):
-        Profile(brake=BRAKE, sensor_to_wheel_cm=3.0).cliff_safe_pwm()
-
-
-def test_cliff_safe_pwm_without_brake() -> None:
-    with pytest.raises(ProfileError):
-        Profile(sensor_to_wheel_cm=6.0).cliff_safe_pwm()
 
 
 @pytest.mark.parametrize(

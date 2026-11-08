@@ -10,3 +10,4 @@ firmware/test/build/
 __pycache__/
 .pytest_cache/
 docs/papers/*.pdf
+*.swp
