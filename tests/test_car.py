@@ -30,6 +30,7 @@ def wait_until(condition: Callable[[], bool]) -> bool:
 def test_start_sets_hb_ms_and_reads_params(link: FakeLink, car: Car) -> None:
     assert link.sent[0] == "{set,hb_ms,300}"
     assert car.imu_ok is True
+    assert car.pwm_limit == 150
     assert car.params() == {Param.MAX_PWM: 100, Param.KP: 4.0}
 
 

@@ -5,6 +5,7 @@ FRAME_MAX_LEN = 32
 IMU_KEY = "imu"
 IMU_OK = "1"
 IMU_FAIL = "0"
+PWM_LIMIT_KEY = "pwm_limit"
 YAW_SCALE = 100
 FIELD_SEPARATOR = ","
 FRAME_START = "{"
@@ -105,6 +106,13 @@ class ImuStatus:
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class PwmLimit:
+    """The firmware hard PWM limit. Read only."""
+
+    value: int
+
+
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
 class Tele:
     ms: int
     sonar_cm: int
@@ -115,7 +123,7 @@ class Tele:
     stop_reason: StopReason
 
 
-type Reply = Ok | Err | Done | ParamValue | ImuStatus | Tele
+type Reply = Ok | Err | Done | ParamValue | ImuStatus | PwmLimit | Tele
 
 
 def encode(command: Command, *args: float | str) -> str:
@@ -152,6 +160,8 @@ def _parse_fields(kind: ReplyKind, fields: list[str]) -> Reply:
             key, value = fields
             if key == IMU_KEY:
                 return ImuStatus(ok=_parse_imu_flag(value))
+            if key == PWM_LIMIT_KEY:
+                return PwmLimit(value=int(value))
             return ParamValue(param=Param(key), value=float(value))
         case ReplyKind.TELE:
             ms, sonar_cm, left, middle, right, yaw_cdeg, batt_mv, motion, stop_reason = fields

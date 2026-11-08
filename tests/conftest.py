@@ -9,7 +9,7 @@ from elegoo.errors import LinkError
 
 DEFAULT_SCRIPT = {
     "{set,hb_ms,300}": ["{ok,set}"],
-    "{get}": ["{p,max_pwm,100}", "{p,kp,4.00}", "{p,imu,1}", "{ok,get}"],
+    "{get}": ["{p,max_pwm,100}", "{p,kp,4.00}", "{p,pwm_limit,150}", "{p,imu,1}", "{ok,get}"],
     "{stop}": ["{ok,stop}"],
 }
 

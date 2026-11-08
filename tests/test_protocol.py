@@ -10,6 +10,7 @@ from elegoo.protocol import (
     Ok,
     Param,
     ParamValue,
+    PwmLimit,
     Reply,
     StopReason,
     Tele,
@@ -45,6 +46,7 @@ def test_encode_rejects_long_frame() -> None:
         pytest.param("{p,kp,4.00}", ParamValue(param=Param.KP, value=4.0), id="float param"),
         pytest.param("{p,imu,1}", ImuStatus(ok=True), id="imu ok"),
         pytest.param("{p,imu,0}", ImuStatus(ok=False), id="imu fail"),
+        pytest.param("{p,pwm_limit,150}", PwmLimit(value=150), id="pwm limit"),
         pytest.param(
             "{t,1234,0,45,1017,46,-9050,7810,turn,none}",
             Tele(
@@ -75,6 +77,7 @@ def test_parse_reply(frame: str, reply: Reply) -> None:
         pytest.param("{p,nope,1}", id="unknown param"),
         pytest.param("{p,kp,x}", id="bad param value"),
         pytest.param("{p,imu,2}", id="bad imu flag"),
+        pytest.param("{p,pwm_limit,1.5}", id="fractional pwm limit"),
         pytest.param("{t,1,2}", id="short tele"),
         pytest.param("{t,1,0,45,1017,46,x,7810,turn,none}", id="bad tele number"),
     ],

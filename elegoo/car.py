@@ -17,6 +17,7 @@ from elegoo.protocol import (
     Ok,
     Param,
     ParamValue,
+    PwmLimit,
     StopReason,
     Tele,
     encode,
@@ -35,7 +36,8 @@ TURN_DONE_TIMEOUT_S = 6.0
 
 logger = logging.getLogger(__name__)
 
-type CommandReply = Ok | Err | Done | ParamValue | ImuStatus
+type CommandReply = Ok | Err | Done | ParamValue | ImuStatus | PwmLimit
+type ParamReply = ParamValue | ImuStatus | PwmLimit
 
 
 class CliCommand(enum.StrEnum):
@@ -52,6 +54,7 @@ class Car:
         self._last_tele: Tele | None = None
         self._tele_received = threading.Condition()
         self._imu_ok: bool | None = None
+        self._pwm_limit: int | None = None
         self._stopped = threading.Event()
         self._reader = threading.Thread(target=self._read_frames, daemon=True)
         self._heartbeat = threading.Thread(target=self._send_heartbeats, daemon=True)
@@ -68,6 +71,11 @@ class Car:
     @property
     def imu_ok(self) -> bool | None:
         return self._imu_ok
+
+    @property
+    def pwm_limit(self) -> int | None:
+        """None if the firmware does not report it."""
+        return self._pwm_limit
 
     def __enter__(self) -> typing.Self:
         return self
@@ -109,6 +117,8 @@ class Car:
                     values[reply.param] = reply.value
                 case ImuStatus():
                     self._imu_ok = reply.ok
+                case PwmLimit():
+                    self._pwm_limit = reply.value
         return values
 
     def tele(self, period_ms: int) -> None:
@@ -173,13 +183,11 @@ class Car:
         # The UNO sends the done of a preempted motion before the ok of the new one.
         self._pending_dones.clear()
 
-    def _command(
-        self, command: Command, *args: float | str, timeout_s: float = REPLY_TIMEOUT_S
-    ) -> list[ParamValue | ImuStatus]:
+    def _command(self, command: Command, *args: float | str, timeout_s: float = REPLY_TIMEOUT_S) -> list[ParamReply]:
         """Sends the command and waits for its ok. Returns the param replies that came before the ok."""
         self._send(encode(command, *args))
         deadline_s = time.monotonic() + timeout_s
-        values: list[ParamValue | ImuStatus] = []
+        values: list[ParamReply] = []
         while True:
             reply = self._next_reply(deadline_s, expected=f"ok for {command}")
             match reply:
@@ -191,7 +199,7 @@ class Car:
                     raise CommandRejectedError(reply.reason)
                 case Done():
                     self._pending_dones.append(reply)
-                case ParamValue() | ImuStatus():
+                case ParamValue() | ImuStatus() | PwmLimit():
                     values.append(reply)
 
     def _next_done(self, deadline_s: float) -> Done:
@@ -200,7 +208,7 @@ class Car:
             match reply:
                 case Done():
                     return reply
-                case Ok() | Err() | ParamValue() | ImuStatus():
+                case Ok() | Err() | ParamValue() | ImuStatus() | PwmLimit():
                     logger.warning("Drop unexpected %s", reply)
 
     def _next_reply(self, deadline_s: float, *, expected: str) -> CommandReply:
@@ -233,7 +241,7 @@ class Car:
                 with self._tele_received:
                     self._last_tele = reply
                     self._tele_received.notify_all()
-            case Ok() | Err() | Done() | ParamValue() | ImuStatus():
+            case Ok() | Err() | Done() | ParamValue() | ImuStatus() | PwmLimit():
                 self._replies.put(reply)
 
     def _send_heartbeats(self) -> None:

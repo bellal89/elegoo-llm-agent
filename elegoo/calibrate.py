@@ -22,16 +22,13 @@ LINE_SAMPLES = 20
 LINE_SENSORS = 3
 NO_ECHO_CM = 0
 MINPWM_START = 30
-MINPWM_STOP = 150
 MINPWM_STEP = 5
 MINPWM_STEP_MS = 300
 MINPWM_YAW_RATE_DPS = 10.0
-RUN_PWMS = (100, 125, 150)
+RUN_PWM_LOW = 100
 BRAKE_TRIGGER_CM = 60
 BRAKE_SETTLE_S = 0.5
 SONAR_STOP_MARGIN_CM = 5
-# The firmware PWM limit. Calibration runs up to it.
-MAX_PWM = 150
 SPEED_SKIP_MS = 300
 
 logger = logging.getLogger(__name__)
@@ -110,7 +107,7 @@ def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
 
 def calibrate_brake(car: Car, profile: Profile) -> Profile:
     max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
-    brake = tuple((pwm, _brake_cm(car, pwm, max_cmd_ms=max_cmd_ms)) for pwm in RUN_PWMS)
+    brake = tuple((pwm, _brake_cm(car, pwm, max_cmd_ms=max_cmd_ms)) for pwm in _run_pwms(car))
     car.set_param(Param.SONAR_STOP_CM, round(max(dict(brake).values())) + SONAR_STOP_MARGIN_CM)
     return dataclasses.replace(profile, brake=brake)
 
@@ -119,7 +116,7 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
     max_cmd_ms = int(car.params()[Param.MAX_CMD_MS])
     speed: list[tuple[int, float]] = []
     batt_mvs: list[int] = []
-    for pwm in RUN_PWMS:
+    for pwm in _run_pwms(car):
         input(f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter.")
         car.drive(pwm, right=pwm, duration_ms=max_cmd_ms)
         teles = list(_drive_teles(car))
@@ -144,7 +141,8 @@ def calibrate_all(car: Car) -> None:
 
 
 def _min_pwm(car: Car, side: Side) -> int:
-    for pwm in range(MINPWM_START, MINPWM_STOP + 1, MINPWM_STEP):
+    pwm_limit = _pwm_limit(car)
+    for pwm in range(MINPWM_START, pwm_limit + 1, MINPWM_STEP):
         match side:
             case Side.LEFT:
                 car.drive(pwm, right=0, duration_ms=MINPWM_STEP_MS)
@@ -154,7 +152,7 @@ def _min_pwm(car: Car, side: Side) -> int:
         car.wait_done(DONE_TIMEOUT_S)
         if max_yaw_rate_dps(teles) > MINPWM_YAW_RATE_DPS:
             return pwm
-    raise CalibrationError(f"{side} side does not move at PWM {MINPWM_STOP}")
+    raise CalibrationError(f"{side} side does not move at PWM {pwm_limit}")
 
 
 def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
@@ -174,6 +172,17 @@ def _brake_cm(car: Car, pwm: int, *, max_cmd_ms: int) -> float:
     brake_cm = trigger.sonar_cm - car.next_tele(TELE_TIMEOUT_S).sonar_cm
     logger.info("Brake at PWM %s: %s cm", pwm, brake_cm)
     return brake_cm
+
+
+def _pwm_limit(car: Car) -> int:
+    if car.pwm_limit is None:
+        raise CalibrationError("the car does not report pwm_limit. Upload the current firmware.")
+    return car.pwm_limit
+
+
+def _run_pwms(car: Car) -> tuple[int, int, int]:
+    pwm_limit = _pwm_limit(car)
+    return RUN_PWM_LOW, (RUN_PWM_LOW + pwm_limit) // 2, pwm_limit
 
 
 def _drive_teles(car: Car) -> Iterator[Tele]:
@@ -203,7 +212,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     with Car(TcpLink(), HB_MS_TCP) if args.tcp else Car(SerialLink(args.port), HB_MS_SERIAL) as car:
-        car.set_param(Param.MAX_PWM, MAX_PWM)
+        # The firmware sets its PWM limit to the highest PWM that stops in time at a table edge.
+        car.set_param(Param.MAX_PWM, _pwm_limit(car))
         car.tele(TELE_PERIOD_MS)
         match Step(args.step):
             case Step.GYRO:

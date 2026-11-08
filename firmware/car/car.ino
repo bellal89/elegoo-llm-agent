@@ -18,11 +18,13 @@ constexpr const char* kDoneKind = "done";
 constexpr const char* kParamKind = "p";
 constexpr const char* kTeleKind = "t";
 constexpr const char* kImuKey = "imu";
+constexpr const char* kPwmLimitKey = "pwm_limit";
 
-// {get} replies: one param per step, then imu, then ok.
-constexpr uint8_t kGetImuStep = kParamCount;
-constexpr uint8_t kGetOkStep = kParamCount + 1;
-constexpr uint8_t kGetIdle = kParamCount + 2;
+// {get} replies: one param per step, then pwm_limit, then imu, then ok.
+constexpr uint8_t kGetPwmLimitStep = kParamCount;
+constexpr uint8_t kGetImuStep = kParamCount + 1;
+constexpr uint8_t kGetOkStep = kParamCount + 2;
+constexpr uint8_t kGetIdle = kParamCount + 3;
 
 Params params;
 Motion motion(params);
@@ -60,6 +62,8 @@ TxFrame paramFrame(Param param) {
   }
   return frame;
 }
+
+TxFrame pwmLimitFrame() { return TxFrame(kParamKind).add(kPwmLimitKey).add(static_cast<int32_t>(kPwmLimit)); }
 
 TxFrame imuFrame() { return TxFrame(kParamKind).add(kImuKey).add(static_cast<uint32_t>(hw::imuOk())); }
 
@@ -215,6 +219,16 @@ void readCommands() {
   }
 }
 
+TxFrame getReplyFrame(uint8_t step) {
+  if (step == kGetPwmLimitStep) {
+    return pwmLimitFrame();
+  }
+  if (step == kGetImuStep) {
+    return imuFrame();
+  }
+  return paramFrame(static_cast<Param>(step));
+}
+
 // The TX buffer cannot hold all {get} replies: send one per loop when it fits.
 void sendNextGetReply() {
   if (get_step == kGetIdle) {
@@ -225,8 +239,7 @@ void sendNextGetReply() {
     get_step = kGetIdle;
     return;
   }
-  TxFrame frame = get_step == kGetImuStep ? imuFrame() : paramFrame(static_cast<Param>(get_step));
-  if (sendIfFits(frame)) {
+  if (sendIfFits(getReplyFrame(get_step))) {
     ++get_step;
   }
 }
@@ -257,6 +270,7 @@ void setup() {
   for (uint8_t i = 0; i < kParamCount; ++i) {
     sendNow(paramFrame(static_cast<Param>(i)));
   }
+  sendNow(pwmLimitFrame());
   sendNow(imuFrame());
   last_hb_ms = millis();
 }
