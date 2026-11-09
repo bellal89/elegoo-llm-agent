@@ -29,7 +29,7 @@ An agent drives the Elegoo robot car from a natural-language instruction. It che
 
 At start, the agent calibrates the car. Then it converts the instruction into a plan, executes the steps through a safe set of actions, and makes a new plan when a step fails.
 
-**Research question:** can a small fine-tuned model on a narrow task reach the success rate of a frontier model, with a much lower decision latency? The project compares three "brains":
+**Research question:** can a small fine-tuned model check the steps not worse than a frontier model by more than a fixed margin, with a much lower decision latency and a shorter task time? The project compares three "brains":
 
 - a proprietary frontier model through an API;
 - an open model that runs locally;
@@ -115,7 +115,20 @@ Main result: a "model × metric" table on one task set. Live runs are expensive 
 | Open VLM | Local: Mac with MLX or llama.cpp, or vLLM on a rented GPU | No network latency, free calls | Weaker planning |
 | Small fine-tuned VLM | Local | Fastest on narrow checks | Fails outside its tasks |
 
-The small model is fine-tuned with LoRA on frames from the project's runs. A teacher model labels the frames: step done or not, obstacle or not, target position in the frame. A separate test checks a hybrid: the large model plans, the small model checks the steps.
+The small model is fine-tuned with LoRA on frames from the project's runs. A teacher model labels the frames: step done or not, obstacle or not, target position in the frame. The small model learns only the step checks, not the planning.
+
+Two experiments:
+
+| Experiment | Variant | Plans | Checks the steps |
+| --- | --- | --- | --- |
+| A. Full brain | Frontier | Frontier VLM | Frontier VLM |
+| | Open | Open VLM | Open VLM |
+| B. Hybrid | Frontier | Frontier VLM | Frontier VLM |
+| | Hybrid | Frontier VLM | Small fine-tuned VLM |
+
+All variants get the same inputs, the same actions and the same limits: frame size, telemetry, action set, step budget.
+
+Data split: by whole episodes and by scene configurations, not by frames. Thus frames of one run and of one scene are not in train and in test together. A person labels the test frames by hand. Teacher labels are for training only, because with teacher labels the test cannot show an error that the teacher also makes.
 
 Related work reports that fine-tuned failure detectors can be worse than general VLMs. Thus "the small model checks steps worse" is also a valid result.
 
@@ -136,6 +149,8 @@ Before live runs, select the local models on Point-Bench for target pointing.
 
 **Metrics:** task success rate, SPL (success weighted by path length), execution time, number of operator interventions, collisions, decision latency (p50 and p95, ms), output tokens per decision, cost per task.
 
+**Step check metrics:** precision and recall of "step done", separately. A false "step done" is more dangerous than a false "step not done": the agent goes to the next step from a wrong position.
+
 **Two evaluation modes:**
 
 - offline replay: the models make decisions on the same recorded frames and telemetry; reproducible and cheap;
@@ -143,7 +158,9 @@ Before live runs, select the local models on Point-Bench for target pointing.
 
 Offline errors do not accumulate, live errors do. Thus the report gives the correlation of the model ranks between the two modes.
 
-With max 20 runs per task, only a large difference in success rate is visible. Thus the live comparison uses a sequential test (STEP): stop the runs when the difference is significant. Each rate has a Wilson confidence interval.
+"No significant difference" does not show that two models are equal. Thus the main claim uses a non-inferiority test with a margin δ that is set before the runs: the small model checks the steps not worse than the frontier model by more than δ = 5 percentage points of precision of "step done", one-sided α = 0.05.
+
+The test runs on step check decisions in offline replay. Live runs cannot give the claim: a live test of a success rate near 0.8 with a margin of 15 percentage points needs about 90 runs per variant (power 0.8); the task set has max 20 per task. Live runs confirm the offline result: the same rank of the variants and no large drop in success rate. Each rate has a Wilson confidence interval.
 
 Related work and its relation to the project: [docs/papers/README.md](docs/papers/README.md).
 
@@ -170,5 +187,5 @@ Each stage ends with a result that you can check.
 - [ ] **Calibration.** Tests and profile from the section above. Target: 90° turn with an error of max 10°.
 - [ ] **Agent and dashboard.** Plan, step checks, replanning, MCP server, web UI with video and chat.
 - [ ] **Task set and baselines.** Five tasks, live runs with the proprietary model, the classic CV and the zero-shot VLM baselines, offline replay of the recordings.
-- [ ] **Open and fine-tuned models.** Selection on Point-Bench, local inference, teacher labels, LoRA, comparison of the three variants and the hybrid with the sequential test.
+- [ ] **Open and fine-tuned models.** Selection on Point-Bench, local inference, teacher labels, LoRA, hand labels for the test frames, experiments A and B, non-inferiority test of the step checks.
 - [ ] **Report and demo.** Results table with intervals, offline–live rank correlation and a short video of a command execution.
