@@ -24,6 +24,7 @@ test:
 upload:
 	arduino-cli compile --warnings all --build-property "compiler.cpp.extra_flags=-Werror=switch" firmware/car
 	arduino-cli upload -p $(PORT) firmware/car
+	@$(MAKE) --no-print-directory hardware-test
 
 hardware-test:
 	uv run tools/hardware_test.py --port $(PORT)

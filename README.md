@@ -6,10 +6,9 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 
 1. Assemble the kit. The firmware supports only the version with the TB6612 motor driver and the MPU6050 shield.
 2. Install the [prerequisites](#prerequisites). Run `make init install test`.
-3. Flash the car: `make upload`.
-4. Run the [hardware test](docs/hardware-test.md).
-5. Calibrate the car and run the acceptance tests: [docs/calibration.md](docs/calibration.md).
-6. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`.
+3. Flash and test the car: [docs/hardware-test.md](docs/hardware-test.md).
+4. Calibrate the car and run the acceptance tests: [docs/calibration.md](docs/calibration.md).
+5. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`.
 
 ## Prerequisites
 
@@ -23,7 +22,7 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 | `make init install` | Set up Python and the pre-commit hook |
 | `make lint` | Lint and type check the Python code |
 | `make test` | Run the firmware and Python tests on the computer |
-| `make upload` | Compile the firmware and flash the car |
+| `make upload` | Compile the firmware, flash the car and run the hardware test |
 | `make hardware-test` | Test the car hardware over USB on a table. The car turns in place |
 | `make calibrate-usb` | Calibrate the car over USB. The car drives on the floor. Write the results to `profile.json`. `STEP` selects one step, for example `gyro`, `minpwm` or `speed`. Without `STEP`, run all steps |
 | `make calibrate-wifi` | The same through the ESP32 Wi-Fi |
@@ -33,8 +32,6 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
 To turn the car 90° to the right, run `uv run python -m elegoo.car --port /dev/cu.usbserial-1110 turn 90`. Through the ESP32 Wi-Fi, use `--tcp` instead of `--port PORT`.
-
-Hardware test after a firmware change: [docs/hardware-test.md](docs/hardware-test.md).
 
 ## About
 
