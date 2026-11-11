@@ -54,7 +54,6 @@ class Motion {
   Out stepTurn(uint32_t now_ms, float yaw_deg);
   Out stepBack(uint32_t now_ms);
   int16_t pwm(Param param) const;
-  int16_t pwmCap() const;
 
   const Params& params_;
   MotionKind kind_ = MotionKind::Idle;

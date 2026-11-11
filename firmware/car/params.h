@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+// Hard PWM limit for all motion. Table edge test 2026-11-07: at PWM 150 a cliff stop ends ~2 cm past
+// the line sensors, 6 cm before the front wheels.
+constexpr int16_t kPwmLimit = 150;
+
 // Append new members only at the end: the index is the EEPROM slot.
 enum class Param : uint8_t {
   MaxPwm,

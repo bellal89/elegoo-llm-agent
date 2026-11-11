@@ -5,15 +5,17 @@ from collections.abc import Callable
 import pytest
 
 from elegoo.car import HB_MS_SERIAL, Car
-from elegoo.errors import CommandRejectedError, ReplyTimeoutError
+from elegoo.errors import CommandRejectedError, ElegooError, LinkError, ReplyTimeoutError
 from elegoo.protocol import ErrReason, Param, StopReason, parse_reply
 from tests.conftest import FakeLink
 
 WAIT_S = 1.0
+NO_TELE_TIMEOUT_S = 0.1
 POLL_S = 0.01
 HB_FRAME = "{hb}"
 STOP_FRAME = "{stop}"
 TELE_FRAME = "{t,1234,30,45,1017,46,9000,7810,turn,none}"
+NEXT_TELE_FRAME = "{t,1334,29,45,1017,46,9100,7810,turn,none}"
 BOOT_DELAY_S = 0.2
 
 
@@ -29,6 +31,7 @@ def wait_until(condition: Callable[[], bool]) -> bool:
 def test_start_sets_hb_ms_and_reads_params(link: FakeLink, car: Car) -> None:
     assert link.sent[0] == "{set,hb_ms,300}"
     assert car.imu_ok is True
+    assert car.pwm_limit == 150
     assert car.params() == {Param.MAX_PWM: 100, Param.KP: 4.0}
 
 
@@ -39,6 +42,21 @@ def test_start_waits_for_boot_report(link: FakeLink) -> None:
     start_s = time.monotonic()
     with Car(link, HB_MS_SERIAL):
         assert time.monotonic() - start_s >= BOOT_DELAY_S
+
+
+@pytest.mark.parametrize(
+    ("resets_car", "error"),
+    [
+        pytest.param(True, LinkError, id="usb: switch S1 hint"),
+        pytest.param(False, ReplyTimeoutError, id="tcp"),
+    ],
+)
+def test_start_without_hb_ms_reply(link: FakeLink, resets_car: bool, error: type[ElegooError]) -> None:
+    link.resets_car = resets_car
+    link.push("{p,imu,1}")
+    del link.script["{set,hb_ms,300}"]
+    with pytest.raises(error):
+        Car(link, HB_MS_SERIAL)
 
 
 def test_failed_start_closes_link(link: FakeLink) -> None:
@@ -68,11 +86,6 @@ def test_wait_done_keeps_done_received_during_other_command(link: FakeLink, car:
     car.move(2000)
     car.tele(100)
     assert car.wait_done(WAIT_S) is StopReason.SONAR
-
-
-def test_drive_sends_fast_flag(link: FakeLink, car: Car) -> None:
-    link.script["{drive,100,-100,500,f}"] = ["{ok,drive}"]
-    car.drive(100, right=-100, duration_ms=500, fast=True)
 
 
 def test_wait_done_times_out(link: FakeLink, car: Car) -> None:
@@ -107,6 +120,18 @@ def test_tele_updates_last_tele_after_bad_frames(link: FakeLink, car: Car) -> No
         link.push(frame)
     assert wait_until(lambda: car.last_tele is not None)
     assert car.last_tele == parse_reply(TELE_FRAME)
+
+
+def test_next_tele_waits_for_new_frame(link: FakeLink, car: Car) -> None:
+    link.push(TELE_FRAME)
+    assert wait_until(lambda: car.last_tele is not None)
+    threading.Timer(BOOT_DELAY_S, link.push, [NEXT_TELE_FRAME]).start()
+    assert car.next_tele(WAIT_S) == parse_reply(NEXT_TELE_FRAME)
+
+
+def test_next_tele_times_out(car: Car) -> None:
+    with pytest.raises(ReplyTimeoutError):
+        car.next_tele(NO_TELE_TIMEOUT_S)
 
 
 def test_heartbeat_runs(link: FakeLink, car: Car) -> None:

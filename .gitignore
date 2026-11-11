@@ -1,6 +1,6 @@
 ELEGOO Smart Robot Car Kit*/
 .venv/
-host/profile.json
+profile.json
 .DS_Store
 docs/*-design.md
 docs/*-plan.md
@@ -10,3 +10,4 @@ firmware/test/build/
 __pycache__/
 .pytest_cache/
 docs/papers/*.pdf
+*.swp

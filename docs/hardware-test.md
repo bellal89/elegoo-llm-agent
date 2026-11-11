@@ -20,7 +20,7 @@ Expected: the car turns in place right and left a few times, then stops. The scr
 2. Put the car on the floor, a wall 0.5 to 1 m ahead.
 3. Push the mode button once. Move the hand away.
 
-Expected: the LED blinks blue for 3 s, stays blue for 2 s, then turns green and the car moves forward. The car stops without contact. The front wheels are approximately 28 cm from the wall. The LED is red.
+Expected: the LED blinks blue for 3 s, stays blue for 2.5 s, then turns green and the car moves forward. The car stops without contact. The front wheels are approximately `sonar_stop_cm` + 3 cm from the wall (28 cm at the default 25). The LED is red.
 
 ## 4. Edge stop
 

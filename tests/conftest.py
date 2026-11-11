@@ -1,5 +1,6 @@
 import queue
 import threading
+import time
 from collections.abc import Iterator
 
 import pytest
@@ -9,16 +10,22 @@ from elegoo.errors import LinkError
 
 DEFAULT_SCRIPT = {
     "{set,hb_ms,300}": ["{ok,set}"],
-    "{get}": ["{p,max_pwm,100}", "{p,kp,4.00}", "{p,imu,1}", "{ok,get}"],
+    "{get}": ["{p,max_pwm,100}", "{p,kp,4.00}", "{p,pwm_limit,150}", "{p,imu,1}", "{ok,get}"],
     "{stop}": ["{ok,stop}"],
 }
+STREAM_PERIOD_S = 0.02
 
 
 class FakeLink:
-    """Answers each sent frame with the frames from `script`."""
+    """Answers each sent frame with the frames from `script`, then with the frames from `streams` one per period.
+
+    A new stream replaces the old one: the car sends one telemetry stream.
+    """
 
     def __init__(self) -> None:
         self.script: dict[str, list[str]] = dict(DEFAULT_SCRIPT)
+        self.streams: dict[str, list[str]] = {}
+        self._stream_id = 0
         self.closed = False
         self.broken = False
         self._sent: list[str] = []
@@ -40,6 +47,9 @@ class FakeLink:
             self._sent.append(frame)
         for reply in self.script.get(frame, []):
             self.push(reply)
+        if frame in self.streams:
+            self._stream_id += 1
+            threading.Thread(target=self._stream, args=[self._stream_id, self.streams[frame]], daemon=True).start()
 
     def recv(self, timeout_s: float) -> str | None:
         if self.broken:
@@ -51,6 +61,13 @@ class FakeLink:
 
     def close(self) -> None:
         self.closed = True
+
+    def _stream(self, stream_id: int, frames: list[str]) -> None:
+        for frame in frames:
+            time.sleep(STREAM_PERIOD_S)
+            if stream_id != self._stream_id:
+                return
+            self.push(frame)
 
 
 @pytest.fixture

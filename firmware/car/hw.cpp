@@ -60,8 +60,6 @@ constexpr float kUsPerS = 1e6f;
 constexpr uint8_t kLedBrightness = 50;
 
 Servo servo;
-bool servo_attached = false;
-uint32_t servo_attach_ms = 0;
 
 uint32_t sonar_trigger_ms = 0;
 bool sonar_triggered = false;
@@ -163,6 +161,14 @@ void motor(uint8_t pwm_pin, uint8_t dir_pin, int16_t value) {
   analogWrite(pwm_pin, abs(value));
 }
 
+// Vibration turns the detached servo, so center it before each test.
+void centerServo() {
+  servo.attach(kServoPin);
+  servo.write(kServoCenterDeg);
+  delay(kServoSettleMs);
+  servo.detach();
+}
+
 }  // namespace
 
 namespace hw {
@@ -178,23 +184,11 @@ void begin() {
   pinMode(kButtonPin, INPUT_PULLUP);
   motors({0, 0});
 
-  servo.attach(kServoPin);
-  servo.write(kServoCenterDeg);
-  servo_attached = true;
-  servo_attach_ms = millis();
-
   FastLED.addLeds<NEOPIXEL, kLedPin>(leds, kLedCount);
   FastLED.setBrightness(kLedBrightness);
 
   imuInit();
   yaw_us = micros();
-}
-
-void update(uint32_t now_ms) {
-  if (servo_attached && now_ms - servo_attach_ms >= kServoSettleMs) {
-    servo.detach();
-    servo_attached = false;
-  }
 }
 
 void motors(Out out) {
@@ -226,6 +220,7 @@ bool imuOk() { return imu_ok; }
 
 void gyroBias() {
   motors({0, 0});
+  centerServo();
   float sum = 0;
   uint32_t count = 0;
   uint32_t start_ms = millis();

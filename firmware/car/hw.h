@@ -14,10 +14,8 @@ enum class LedColor : uint8_t {
 
 namespace hw {
 
-// Sets pins, centers the sonar servo, starts the IMU. Call once in setup().
+// Sets pins, starts the IMU. Call once in setup().
 void begin();
-// Detaches the servo after it reaches center. Call each loop.
-void update(uint32_t now_ms);
 
 void motors(Out out);
 // 0 = no echo. Triggers at most every 60 ms; returns the last value between triggers.
@@ -26,7 +24,8 @@ uint16_t line(LineSensor sensor);
 uint16_t battMv();
 
 bool imuOk();
-// Blocks for 2 s with motors off. On an IMU failure, imuOk() turns false.
+// Centers the sonar servo, then measures the gyro bias. Blocks for 2.5 s with motors off.
+// On an IMU failure, imuOk() turns false.
 void gyroBias();
 // Integrates gyro Z since the last call. Call each loop.
 void updateYaw();

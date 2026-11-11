@@ -7,10 +7,9 @@ import time
 import types
 import typing
 
-from elegoo.errors import CommandRejectedError, ReplyTimeoutError
+from elegoo.errors import CommandRejectedError, LinkError, ReplyTimeoutError
 from elegoo.link import Link, SerialLink, TcpLink
 from elegoo.protocol import (
-    FAST_FLAG,
     Command,
     Done,
     Err,
@@ -18,6 +17,7 @@ from elegoo.protocol import (
     Ok,
     Param,
     ParamValue,
+    PwmLimit,
     StopReason,
     Tele,
     encode,
@@ -36,7 +36,8 @@ TURN_DONE_TIMEOUT_S = 6.0
 
 logger = logging.getLogger(__name__)
 
-type CommandReply = Ok | Err | Done | ParamValue | ImuStatus
+type ParamReply = ParamValue | ImuStatus | PwmLimit
+type CommandReply = Ok | Err | Done | ParamReply
 
 
 class CliCommand(enum.StrEnum):
@@ -51,7 +52,9 @@ class Car:
         self._pending_dones: list[Done] = []
         self._motion: Command | None = None
         self._last_tele: Tele | None = None
+        self._tele_received = threading.Condition()
         self._imu_ok: bool | None = None
+        self._pwm_limit: int | None = None
         self._stopped = threading.Event()
         self._reader = threading.Thread(target=self._read_frames, daemon=True)
         self._heartbeat = threading.Thread(target=self._send_heartbeats, daemon=True)
@@ -69,6 +72,11 @@ class Car:
     def imu_ok(self) -> bool | None:
         return self._imu_ok
 
+    @property
+    def pwm_limit(self) -> int | None:
+        """None if the firmware does not report it."""
+        return self._pwm_limit
+
     def __enter__(self) -> typing.Self:
         return self
 
@@ -80,12 +88,12 @@ class Car:
     ) -> None:
         self.close()
 
-    def drive(self, left: int, *, right: int, duration_ms: int, fast: bool = False) -> None:
-        """PWM -255..255 per side, open loop."""
-        self._start_motion(Command.DRIVE, left, right, duration_ms, *self._fast_args(fast))
+    def drive(self, left: int, *, right: int, duration_ms: int) -> None:
+        """PWM per side within ±pwm_limit, capped by max_pwm, open loop."""
+        self._start_motion(Command.DRIVE, left, right, duration_ms)
 
-    def move(self, duration_ms: int, *, fast: bool = False) -> None:
-        self._start_motion(Command.MOVE, duration_ms, *self._fast_args(fast))
+    def move(self, duration_ms: int) -> None:
+        self._start_motion(Command.MOVE, duration_ms)
 
     def turn(self, deg: int) -> None:
         """Positive deg turns right."""
@@ -95,7 +103,7 @@ class Car:
         self._command(Command.STOP)
 
     def gyro(self) -> None:
-        """Measures the gyro bias. The car must not move for 2 s."""
+        """Centers the sonar servo and measures the gyro bias. The car must not move for 2.5 s."""
         self._command(Command.GYRO, timeout_s=GYRO_TIMEOUT_S)
 
     def set_param(self, param: Param, value: float) -> None:
@@ -109,11 +117,23 @@ class Car:
                     values[reply.param] = reply.value
                 case ImuStatus():
                     self._imu_ok = reply.ok
+                case PwmLimit():
+                    self._pwm_limit = reply.value
         return values
 
     def tele(self, period_ms: int) -> None:
         """Telemetry period: 0 = off, else 100..65535 ms."""
         self._command(Command.TELE, period_ms)
+
+    def next_tele(self, timeout_s: float) -> Tele:
+        """Waits for a telemetry frame that comes after this call."""
+        with self._tele_received:
+            previous = self._last_tele
+            self._tele_received.wait_for(lambda: self._last_tele is not previous, timeout_s)
+            tele = self._last_tele
+        if tele is None or tele is previous:
+            raise ReplyTimeoutError("no telemetry from the car")
+        return tele
 
     def wait_done(self, timeout_s: float) -> StopReason:
         """Returns the stop reason of the last motion command."""
@@ -134,7 +154,13 @@ class Car:
         self._reader.start()
         if self._link.resets_car:
             self._wait_boot()
-        self.set_param(Param.HB_MS, hb_ms)
+        try:
+            self.set_param(Param.HB_MS, hb_ms)
+        except ReplyTimeoutError as error:
+            # A boot report came, so only the UNO RX is cut off: S1 routes it to the ESP32.
+            if self._link.resets_car:
+                raise LinkError('the car sends but does not receive. Set switch S1 to "upload".') from error
+            raise
         self._heartbeat.start()
         self.params()
 
@@ -151,22 +177,17 @@ class Car:
             logger.debug("Drop boot %s", reply)
         self._imu_ok = reply.ok
 
-    def _fast_args(self, fast: bool) -> tuple[str, ...]:
-        return (FAST_FLAG,) if fast else ()
-
     def _start_motion(self, command: Command, *args: int | str) -> None:
         self._command(command, *args)
         self._motion = command
         # The UNO sends the done of a preempted motion before the ok of the new one.
         self._pending_dones.clear()
 
-    def _command(
-        self, command: Command, *args: float | str, timeout_s: float = REPLY_TIMEOUT_S
-    ) -> list[ParamValue | ImuStatus]:
+    def _command(self, command: Command, *args: float | str, timeout_s: float = REPLY_TIMEOUT_S) -> list[ParamReply]:
         """Sends the command and waits for its ok. Returns the param replies that came before the ok."""
         self._send(encode(command, *args))
         deadline_s = time.monotonic() + timeout_s
-        values: list[ParamValue | ImuStatus] = []
+        values: list[ParamReply] = []
         while True:
             reply = self._next_reply(deadline_s, expected=f"ok for {command}")
             match reply:
@@ -178,7 +199,7 @@ class Car:
                     raise CommandRejectedError(reply.reason)
                 case Done():
                     self._pending_dones.append(reply)
-                case ParamValue() | ImuStatus():
+                case ParamValue() | ImuStatus() | PwmLimit():
                     values.append(reply)
 
     def _next_done(self, deadline_s: float) -> Done:
@@ -187,7 +208,7 @@ class Car:
             match reply:
                 case Done():
                     return reply
-                case Ok() | Err() | ParamValue() | ImuStatus():
+                case Ok() | Err() | ParamValue() | ImuStatus() | PwmLimit():
                     logger.warning("Drop unexpected %s", reply)
 
     def _next_reply(self, deadline_s: float, *, expected: str) -> CommandReply:
@@ -217,8 +238,10 @@ class Car:
             case None:
                 logger.warning("Drop bad frame %s", frame)
             case Tele():
-                self._last_tele = reply
-            case Ok() | Err() | Done() | ParamValue() | ImuStatus():
+                with self._tele_received:
+                    self._last_tele = reply
+                    self._tele_received.notify_all()
+            case Ok() | Err() | Done() | ParamValue() | ImuStatus() | PwmLimit():
                 self._replies.put(reply)
 
     def _send_heartbeats(self) -> None:

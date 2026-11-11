@@ -17,18 +17,17 @@ struct ParamSpec {
 };
 
 constexpr float kPwmMin = 0;
-constexpr float kPwmMax = 255;
 
 ParamSpec paramSpec(Param param) {
   switch (param) {
     case Param::MaxPwm:
-      return {"max_pwm", kPwmMin, kPwmMax, 100, true};
+      return {"max_pwm", kPwmMin, kPwmLimit, 100, true};
     case Param::MovePwm:
-      return {"move_pwm", kPwmMin, kPwmMax, 100, true};
+      return {"move_pwm", kPwmMin, kPwmLimit, 100, true};
     case Param::TurnPwm:
-      return {"turn_pwm", kPwmMin, kPwmMax, 110, true};
+      return {"turn_pwm", kPwmMin, kPwmLimit, 110, true};
     case Param::TurnSlowPwm:
-      return {"turn_slow_pwm", kPwmMin, kPwmMax, 90, true};
+      return {"turn_slow_pwm", kPwmMin, kPwmLimit, 90, true};
     case Param::TurnSlowDeg:
       return {"turn_slow_deg", 0, 90, 20, false};
     case Param::TurnMargin:
@@ -40,7 +39,7 @@ ParamSpec paramSpec(Param param) {
     case Param::CliffTh:
       return {"cliff_th", 0, 1023, 950, true};
     case Param::BackPwm:
-      return {"back_pwm", kPwmMin, kPwmMax, 90, true};
+      return {"back_pwm", kPwmMin, kPwmLimit, 90, true};
     case Param::BackMs:
       return {"back_ms", 0, 2000, 300, true};
     case Param::MaxCmdMs:
