@@ -287,7 +287,6 @@ void loop() {
   if (self_test_active) {
     last_hb_ms = now_ms;
   }
-  hw::update(now_ms);
   hw::updateYaw();
   Sensors sensors = readSensors(now_ms);
   motion.applySafety(sensors);

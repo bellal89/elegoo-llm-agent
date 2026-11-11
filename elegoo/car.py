@@ -103,7 +103,7 @@ class Car:
         self._command(Command.STOP)
 
     def gyro(self) -> None:
-        """Measures the gyro bias. The car must not move for 2 s."""
+        """Centers the sonar servo and measures the gyro bias. The car must not move for 2.5 s."""
         self._command(Command.GYRO, timeout_s=GYRO_TIMEOUT_S)
 
     def set_param(self, param: Param, value: float) -> None:

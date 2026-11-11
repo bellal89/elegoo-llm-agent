@@ -141,7 +141,7 @@ def calibrate_line(car: Car, profile: Profile, *, surface: Surface) -> Profile:
 def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
     input(
         "Put the car on the floor with free space around it for the min PWM runs."
-        " Press Enter, then keep the car still for 2 s."
+        " Press Enter, then keep the car still for 3 s."
     )
     car.gyro()
     min_pwm = MinPwm(
@@ -237,7 +237,7 @@ def _start_wall_run(car: Car, *, step: Step, pwm: int) -> None:
     Measures the gyro bias first: a bias error from the boot, when the car can be in a hand, makes the car arc.
     """
     input(
-        f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
+        f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}. Press Enter, then keep the car still for 3 s."
     )
     car.gyro()
     car.set_param(Param.MOVE_PWM, pwm)
