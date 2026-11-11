@@ -21,6 +21,7 @@ LEFT_MASKED = 6
 ALL_SENSORS = 7
 WALL_RUN_GET = ["{p,move_pwm,90}", "{p,max_cmd_ms,5000}", "{p,pwm_limit,150}", "{p,imu,1}", "{ok,get}"]
 WALL_RUN_MOVE = "{move,5000}"
+GYRO = "{gyro}"
 RESTORE_MOVE_PWM = "{set,move_pwm,90}"
 HB_FRAME = "{hb}"
 STOP_BY_CMD = ["{ok,stop}", "{done,move,cmd}"]
@@ -45,6 +46,7 @@ def wall_run_link(link: FakeLink, monkeypatch: pytest.MonkeyPatch) -> FakeLink:
     monkeypatch.setattr(calibrate, "SETTLE_S", 0)
     link.script["{get}"] = WALL_RUN_GET
     link.script[WALL_RUN_MOVE] = ["{ok,move}"]
+    link.script[GYRO] = ["{ok,gyro}"]
     link.script["{stop}"] = STOP_BY_CMD
     for pwm in (90, 100, 125, 150):
         link.script[f"{{set,move_pwm,{pwm}}}"] = ["{ok,set}"]
@@ -137,6 +139,7 @@ def test_calibrate_brake_sets_sonar_stop_cm(wall_run_link: FakeLink, car: Car) -
     assert calibrate_brake(car, Profile()).brake == ((100, 10.0), (125, 10.0), (150, 10.0))
     sent = [frame for frame in wall_run_link.sent if frame != HB_FRAME]
     assert sent[-2:] == [RESTORE_MOVE_PWM, "{set,sonar_stop_cm,15}"]
+    assert [frame for frame in sent if frame in (GYRO, WALL_RUN_MOVE)] == [GYRO, WALL_RUN_MOVE] * 3
 
 
 @pytest.mark.parametrize(
