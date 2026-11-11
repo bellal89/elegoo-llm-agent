@@ -20,7 +20,7 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 
 | Command | Action |
 | --- | --- |
-| `make init install` | Set up Python and the git hooks |
+| `make init install` | Set up Python and the pre-commit hook |
 | `make lint` | Lint and type check the Python code |
 | `make test` | Run the firmware and Python tests on the computer |
 | `make upload` | Compile the firmware and flash the car |
@@ -33,8 +33,6 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
 To turn the car 90° to the right, run `uv run python -m elegoo.car --port /dev/cu.usbserial-1110 turn 90`. Through the ESP32 Wi-Fi, use `--tcp` instead of `--port PORT`.
-
-The pre-commit hook formats the Python code.
 
 Hardware test after a firmware change: [docs/hardware-test.md](docs/hardware-test.md).
 
