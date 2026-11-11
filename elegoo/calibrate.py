@@ -29,6 +29,7 @@ MINPWM_YAW_RATE_DPS = 10.0
 RUN_PWM_LOW = 100
 BRAKE_TRIGGER_CM = 60
 SETTLE_S = 0.5
+SONAR_MEDIAN_FRAMES = 3
 SONAR_STOP_MARGIN_CM = 5
 SPEED_SKIP_MS = 300
 
@@ -201,7 +202,7 @@ def _yaw_rates(car: Car, side: Side) -> Iterator[tuple[int, float]]:
         yield pwm, rate_dps
 
 
-def _brake_cm(car: Car, pwm: int) -> int:
+def _brake_cm(car: Car, pwm: int) -> float:
     _start_wall_run(car, step=Step.BRAKE, pwm=pwm)
     trigger = brake_trigger(_motion_teles(car, MotionKind.MOVE))
     if trigger is None:
@@ -211,7 +212,7 @@ def _brake_cm(car: Car, pwm: int) -> int:
     if reason is not StopReason.CMD:
         raise CalibrationError(f"car stopped by {reason}, not by the stop command")
     time.sleep(SETTLE_S)
-    final_cm = car.next_tele(TELE_TIMEOUT_S).sonar_cm
+    final_cm = statistics.median(car.next_tele(TELE_TIMEOUT_S).sonar_cm for _ in range(SONAR_MEDIAN_FRAMES))
     brake_cm = trigger.sonar_cm - final_cm
     logger.info("Brake at PWM %s: %s cm", pwm, brake_cm)
     if final_cm == NO_ECHO_CM or brake_cm <= 0:

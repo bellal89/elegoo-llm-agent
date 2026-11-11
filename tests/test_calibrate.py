@@ -24,6 +24,7 @@ ALL_SENSORS = 7
 WALL_RUN_GET = ["{p,move_pwm,90}", "{p,max_cmd_ms,5000}", "{p,pwm_limit,150}", "{p,imu,1}", "{ok,get}"]
 WALL_RUN_MOVE = "{move,5000}"
 GYRO = "{gyro}"
+SONAR_ERROR_CM = 98
 RESTORE_MOVE_PWM = "{set,move_pwm,90}"
 HB_FRAME = "{hb}"
 STOP_BY_CMD = ["{ok,stop}", "{done,move,cmd}"]
@@ -34,10 +35,12 @@ def tele_frame(sonar_cm: int, motion: MotionKind, *, ms: int = 0) -> str:
 
 
 def brake_run(*, trigger_cm: int, final_cm: int) -> list[str]:
+    """Has a single sonar error in the first frame after the stop."""
     return [
         tele_frame(120, MotionKind.MOVE),
         tele_frame(trigger_cm + 3, MotionKind.MOVE),
         tele_frame(trigger_cm, MotionKind.MOVE),
+        tele_frame(SONAR_ERROR_CM, MotionKind.IDLE),
         *[tele_frame(final_cm, MotionKind.IDLE)] * 5,
     ]
 
