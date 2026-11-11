@@ -26,7 +26,7 @@ upload:
 	arduino-cli upload -p $(PORT) firmware/car
 
 hardware-test:
-	uv run tools/hardware_test_wired.py --port $(PORT)
+	uv run tools/hardware_test.py --port $(PORT)
 
 # STEP: gyro, line floor, line edge, minpwm, brake, speed or all. Example: make calibrate-usb STEP="line floor".
 calibrate-usb:
