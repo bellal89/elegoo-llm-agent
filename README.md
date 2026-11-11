@@ -1,5 +1,7 @@
 # LLM agent for the Elegoo robot car
 
+A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a natural-language instruction. The project compares three agent "brains": a frontier model through an API, a local open model and a small fine-tuned model. This repository contains the car firmware with onboard safety and a Python host that controls and calibrates the car over USB or Wi-Fi. Details: [About](#about).
+
 ## Prerequisites
 
 - [arduino-cli](https://arduino.github.io/arduino-cli/): `brew install arduino-cli`. The first `make upload` downloads the board core and the libraries that `firmware/car/sketch.yaml` sets.
