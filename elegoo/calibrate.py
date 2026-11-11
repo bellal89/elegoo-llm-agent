@@ -84,7 +84,10 @@ def fit_speed_cm_s(teles: list[Tele]) -> float:
     if len(points) < 2:
         raise CalibrationError(f"only {len(points)} speed points")
     fit = statistics.linear_regression([ms for ms, _ in points], [cm for _, cm in points])
-    return -fit.slope * MS_PER_S
+    cm_s = -fit.slope * MS_PER_S
+    if cm_s <= 0:
+        raise CalibrationError(f"the car does not approach the wall: {cm_s:.1f} cm/s")
+    return cm_s
 
 
 def brake_trigger(teles: Iterator[Tele]) -> Tele | None:
@@ -135,6 +138,11 @@ def calibrate_line(car: Car, profile: Profile, *, surface: Surface) -> Profile:
 
 
 def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
+    input(
+        "Put the car on the floor with free space around it for the min PWM runs."
+        " Press Enter, then keep the car still for 2 s."
+    )
+    car.gyro()
     min_pwm = MinPwm(
         left=min_turning_pwm(_yaw_rates(car, Side.LEFT)), right=min_turning_pwm(_yaw_rates(car, Side.RIGHT))
     )
@@ -156,7 +164,9 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
         for pwm in _run_pwms(car):
             _start_wall_run(car, step=Step.SPEED, pwm=pwm)
             teles = list(_motion_teles(car, MotionKind.MOVE))
-            logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
+            reason = car.wait_done(DONE_TIMEOUT_S)
+            if reason is not StopReason.SONAR:
+                raise CalibrationError(f"speed run at PWM {pwm} ended by {reason}, not by sonar")
             speed.append((pwm, fit_speed_cm_s(teles)))
             batt_mvs.extend(tele.batt_mv for tele in teles)
     logger.info("Speed: %s", speed)
@@ -170,7 +180,6 @@ def calibrate_all(car: Car) -> None:
     _update_profile(lambda profile: calibrate_line(car, profile, surface=Surface.FLOOR))
     input("Put the car on a table: wheels on the table, line sensors in the air over the edge. Press Enter.")
     _update_profile(lambda profile: calibrate_line(car, profile, surface=Surface.EDGE))
-    input("Put the car on the floor with free space around it for the min PWM runs. Press Enter.")
     _update_profile(lambda profile: calibrate_minpwm(car, profile))
     _update_profile(lambda profile: calibrate_brake(car, profile))
     _update_profile(lambda profile: calibrate_speed(car, profile))

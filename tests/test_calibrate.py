@@ -4,13 +4,15 @@ from elegoo import calibrate
 from elegoo.calibrate import (
     brake_trigger,
     calibrate_brake,
+    calibrate_minpwm,
+    calibrate_speed,
     cliff_threshold,
     fit_speed_cm_s,
     max_yaw_rate_dps,
     min_turning_pwm,
 )
 from elegoo.car import HB_MS_SERIAL, Car
-from elegoo.errors import CalibrationError
+from elegoo.errors import CalibrationError, ReplyTimeoutError
 from elegoo.profile import Profile
 from elegoo.protocol import MotionKind, StopReason, Tele
 from tests.conftest import FakeLink
@@ -27,8 +29,8 @@ HB_FRAME = "{hb}"
 STOP_BY_CMD = ["{ok,stop}", "{done,move,cmd}"]
 
 
-def tele_frame(sonar_cm: int, motion: MotionKind) -> str:
-    return f"{{t,0,{sonar_cm},45,1017,46,0,7800,{motion},none}}"
+def tele_frame(sonar_cm: int, motion: MotionKind, *, ms: int = 0) -> str:
+    return f"{{t,{ms},{sonar_cm},45,1017,46,0,7800,{motion},none}}"
 
 
 def brake_run(*, trigger_cm: int, final_cm: int) -> list[str]:
@@ -41,7 +43,7 @@ def brake_run(*, trigger_cm: int, final_cm: int) -> list[str]:
 
 
 @pytest.fixture
-def wall_run_link(link: FakeLink, monkeypatch: pytest.MonkeyPatch) -> FakeLink:
+def calibration_link(link: FakeLink, monkeypatch: pytest.MonkeyPatch) -> FakeLink:
     monkeypatch.setattr("builtins.input", lambda _: "")
     monkeypatch.setattr(calibrate, "SETTLE_S", 0)
     link.script["{get}"] = WALL_RUN_GET
@@ -106,9 +108,16 @@ def test_fit_speed_ignores_sonar_error() -> None:
     assert fit_speed_cm_s(teles) == pytest.approx(30.0, abs=1.0)
 
 
-def test_fit_speed_without_samples() -> None:
+@pytest.mark.parametrize(
+    "teles",
+    [
+        pytest.param([make_tele(0), make_tele(100), make_tele(300, sonar_cm=0)], id="no samples"),
+        pytest.param([make_tele(ms, sonar_cm=50 + 3 * ms // 100) for ms in range(0, 1000, 100)], id="receding wall"),
+    ],
+)
+def test_fit_speed_rejects(teles: list[Tele]) -> None:
     with pytest.raises(CalibrationError):
-        fit_speed_cm_s([make_tele(0), make_tele(100), make_tele(300, sonar_cm=0)])
+        fit_speed_cm_s(teles)
 
 
 @pytest.mark.parametrize(
@@ -134,10 +143,10 @@ def test_min_turning_pwm_rejects_turn_only_at_last_step() -> None:
         min_turning_pwm(iter([(30, 0.0), (35, 15.0)]))
 
 
-def test_calibrate_brake_sets_sonar_stop_cm(wall_run_link: FakeLink, car: Car) -> None:
-    wall_run_link.streams[WALL_RUN_MOVE] = brake_run(trigger_cm=55, final_cm=45)
+def test_calibrate_brake_sets_sonar_stop_cm(calibration_link: FakeLink, car: Car) -> None:
+    calibration_link.streams[WALL_RUN_MOVE] = brake_run(trigger_cm=55, final_cm=45)
     assert calibrate_brake(car, Profile()).brake == ((100, 10.0), (125, 10.0), (150, 10.0))
-    sent = [frame for frame in wall_run_link.sent if frame != HB_FRAME]
+    sent = [frame for frame in calibration_link.sent if frame != HB_FRAME]
     assert sent[-2:] == [RESTORE_MOVE_PWM, "{set,sonar_stop_cm,15}"]
     assert [frame for frame in sent if frame in (GYRO, WALL_RUN_MOVE)] == [GYRO, WALL_RUN_MOVE] * 3
 
@@ -156,16 +165,35 @@ def test_calibrate_brake_sets_sonar_stop_cm(wall_run_link: FakeLink, car: Car) -
     ],
 )
 def test_calibrate_brake_rejects_bad_run(
-    wall_run_link: FakeLink, car: Car, run: list[str], stop_replies: list[str]
+    calibration_link: FakeLink, car: Car, run: list[str], stop_replies: list[str]
 ) -> None:
-    wall_run_link.streams[WALL_RUN_MOVE] = run
-    wall_run_link.script["{stop}"] = stop_replies
+    calibration_link.streams[WALL_RUN_MOVE] = run
+    calibration_link.script["{stop}"] = stop_replies
     with pytest.raises(CalibrationError):
         calibrate_brake(car, Profile())
-    assert RESTORE_MOVE_PWM in wall_run_link.sent
+    assert RESTORE_MOVE_PWM in calibration_link.sent
 
 
-def test_calibrate_brake_needs_pwm_limit(wall_run_link: FakeLink) -> None:
-    wall_run_link.script["{get}"] = [frame for frame in WALL_RUN_GET if "pwm_limit" not in frame]
-    with Car(wall_run_link, HB_MS_SERIAL) as car, pytest.raises(CalibrationError):
+def test_calibrate_brake_needs_pwm_limit(calibration_link: FakeLink) -> None:
+    calibration_link.script["{get}"] = [frame for frame in WALL_RUN_GET if "pwm_limit" not in frame]
+    with Car(calibration_link, HB_MS_SERIAL) as car, pytest.raises(CalibrationError):
         calibrate_brake(car, Profile())
+
+
+def test_calibrate_speed_rejects_run_without_sonar_stop(calibration_link: FakeLink, car: Car) -> None:
+    calibration_link.streams[WALL_RUN_MOVE] = [
+        *[tele_frame(150 - 3 * ms // 100, MotionKind.MOVE, ms=ms) for ms in range(0, 1000, 100)],
+        "{done,move,done}",
+        tele_frame(120, MotionKind.IDLE, ms=1000),
+    ]
+    with pytest.raises(CalibrationError):
+        calibrate_speed(car, Profile())
+
+
+def test_calibrate_minpwm_measures_gyro_bias_first(calibration_link: FakeLink, car: Car) -> None:
+    with pytest.raises(ReplyTimeoutError):
+        calibrate_minpwm(car, Profile())
+    assert [frame for frame in calibration_link.sent if frame not in (HB_FRAME, "{get}")][-2:] == [
+        GYRO,
+        "{drive,30,0,300}",
+    ]
