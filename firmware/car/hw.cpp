@@ -21,8 +21,6 @@ constexpr uint8_t kSonarEchoPin = 12;
 constexpr uint8_t kServoPin = 10;
 constexpr uint8_t kLedPin = 4;
 constexpr uint8_t kLedCount = 1;
-// Mode button on the kit shield; pressed = LOW.
-constexpr uint8_t kButtonPin = 2;
 
 // Factory formula: divider ratio and ADC step, with a 1.08 correction.
 constexpr float kBattVoltsPerStep = 0.0375f * 1.08f;
@@ -138,8 +136,6 @@ CRGB ledRgb(LedColor color) {
       return CRGB::Green;
     case LedColor::Red:
       return CRGB::Red;
-    case LedColor::Off:
-      return CRGB::Black;
   }
   return CRGB::Black;
 }
@@ -181,7 +177,6 @@ void begin() {
   pinMode(kLeftDirPin, OUTPUT);
   pinMode(kSonarTrigPin, OUTPUT);
   pinMode(kSonarEchoPin, INPUT);
-  pinMode(kButtonPin, INPUT_PULLUP);
   motors({0, 0});
 
   FastLED.addLeds<NEOPIXEL, kLedPin>(leds, kLedCount);
@@ -257,7 +252,5 @@ void led(LedColor color) {
   leds[0] = ledRgb(color);
   FastLED.show();
 }
-
-bool buttonDown() { return digitalRead(kButtonPin) == LOW; }
 
 }  // namespace hw

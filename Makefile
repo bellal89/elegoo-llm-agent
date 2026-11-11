@@ -24,9 +24,10 @@ test:
 upload:
 	arduino-cli compile --warnings all --build-property "compiler.cpp.extra_flags=-Werror=switch" firmware/car
 	arduino-cli upload -p $(PORT) firmware/car
+	@$(MAKE) --no-print-directory hardware-test
 
 hardware-test:
-	uv run tools/hardware_test_wired.py --port $(PORT)
+	uv run tools/hardware_test.py --port $(PORT)
 
 # STEP: gyro, line floor, line edge, minpwm, brake, speed or all. Example: make calibrate-usb STEP="line floor".
 calibrate-usb:

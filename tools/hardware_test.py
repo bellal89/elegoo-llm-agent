@@ -234,9 +234,12 @@ def check_heartbeat(link: Link, report: Report) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the wired part of the hardware test.")
+    parser = argparse.ArgumentParser(description="Run the hardware test.")
     parser.add_argument("--port", required=True)
     port = parser.parse_args().port
+    input(
+        "Put the car on a table, wheels down, with 30 cm of free space around it. Press Enter, then do not touch the car until the script ends."
+    )
 
     link = Link(port)
     report = Report()
