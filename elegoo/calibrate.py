@@ -154,10 +154,7 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
     batt_mvs: list[int] = []
     with _move_pwm_restored(car):
         for pwm in _run_pwms(car):
-            input(
-                f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
-            )
-            _start_wall_run(car, pwm)
+            _start_wall_run(car, step=Step.SPEED, pwm=pwm)
             teles = list(_motion_teles(car, MotionKind.MOVE))
             logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
             speed.append((pwm, fit_speed_cm_s(teles)))
@@ -196,10 +193,7 @@ def _yaw_rates(car: Car, side: Side) -> Iterator[tuple[int, float]]:
 
 
 def _brake_cm(car: Car, pwm: int) -> int:
-    input(
-        f"Place the car ~150 cm from a wall for the brake run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
-    )
-    _start_wall_run(car, pwm)
+    _start_wall_run(car, step=Step.BRAKE, pwm=pwm)
     trigger = brake_trigger(_motion_teles(car, MotionKind.MOVE))
     if trigger is None:
         raise CalibrationError(f"car stopped before {BRAKE_TRIGGER_CM} cm: {car.wait_done(DONE_TIMEOUT_S)}")
@@ -227,11 +221,16 @@ def _run_pwms(car: Car) -> tuple[int, int, int]:
     return RUN_PWM_LOW, (RUN_PWM_LOW + pwm_limit) // 2, pwm_limit
 
 
-def _start_wall_run(car: Car, pwm: int) -> None:
+def _start_wall_run(car: Car, *, step: Step, pwm: int) -> None:
     """Moves toward the wall with heading hold. An open loop drive turns away from the wall.
 
     Measures the gyro bias first: a bias error from the boot, when the car can be in a hand, makes the car arc.
     """
+    usb_check = " Make sure that the USB cable is connected." if car.usb else ""
+    input(
+        f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}.{usb_check}"
+        " Press Enter, then keep the car still for 2 s."
+    )
     car.gyro()
     car.set_param(Param.MOVE_PWM, pwm)
     car.move(int(car.params()[Param.MAX_CMD_MS]))

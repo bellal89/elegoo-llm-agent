@@ -73,6 +73,10 @@ class Car:
         return self._imu_ok
 
     @property
+    def usb(self) -> bool:
+        return isinstance(self._link, SerialLink)
+
+    @property
     def pwm_limit(self) -> int | None:
         """None if the firmware does not report it."""
         return self._pwm_limit
