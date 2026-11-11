@@ -24,10 +24,10 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 | `make lint` | Lint and type check the Python code |
 | `make test` | Run the firmware and Python tests on the computer |
 | `make upload` | Compile the firmware and flash the car |
-| `make hardware-test` | Run the wired part of the hardware test |
-| `make calibrate-usb` | Calibrate the car over USB. Write the results to `profile.json`. `STEP` selects one step |
+| `make hardware-test` | Test the car hardware over USB on a table. The car turns in place |
+| `make calibrate-usb` | Calibrate the car over USB. The car drives on the floor. Write the results to `profile.json`. `STEP` selects one step, for example `gyro`, `minpwm` or `speed`. Without `STEP`, run all steps |
 | `make calibrate-wifi` | The same through the ESP32 Wi-Fi |
-| `make accept-usb` | Run an acceptance test over USB. `TEST` selects the test |
+| `make accept-usb` | Run an acceptance test over USB. The car drives on the floor. `TEST` selects the test: `turn`, `move`, `wall` or `cliff` |
 | `make accept-wifi` | The same through the ESP32 Wi-Fi |
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
