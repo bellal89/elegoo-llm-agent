@@ -2,7 +2,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from elegoo.accept import CliffTarget, ask_number, ask_yes, cliff_rep, move_rep, turn_rep, wall_pwms, wall_rep
+from elegoo.accept import ask_number, ask_yes, cliff_rep, move_rep, turn_rep, wall_pwms, wall_rep
 from elegoo.car import Car
 from elegoo.profile import MinPwm, Profile
 from elegoo.protocol import MotionKind
@@ -41,7 +41,7 @@ def test_ask_yes_reprompts_on_bad_input(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_wall_pwms_start_above_min_pwm() -> None:
-    assert wall_pwms(MinPwm(left=40, right=45), max_pwm=150) == (55, 102, 150)
+    assert wall_pwms(Profile(min_pwm=MinPwm(left=40, right=45)), max_pwm=150) == (55, 102, 150)
 
 
 @pytest.mark.parametrize(
@@ -110,5 +110,5 @@ def test_cliff_rep(
 ) -> None:
     accept_link.script["{move,5000}"] = ["{ok,move}", f"{{done,move,{reason}}}"]
     answers(monkeypatch, "", reached)
-    assert cliff_rep(car, target=CliffTarget.EDGE).passed is passed
+    assert cliff_rep(car).passed is passed
     assert "{set,move_pwm,150}" in accept_link.sent

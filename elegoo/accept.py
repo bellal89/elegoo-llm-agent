@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 import enum
+import itertools
 import logging
 from collections.abc import Callable
 
@@ -8,7 +9,7 @@ from elegoo.calibrate import PROFILE_PATH, TELE_PERIOD_MS, TELE_TIMEOUT_S, move_
 from elegoo.car import HB_MS_SERIAL, HB_MS_TCP, MS_PER_S, TURN_DONE_TIMEOUT_S, Car
 from elegoo.errors import ProfileError
 from elegoo.link import SerialLink, TcpLink
-from elegoo.profile import MinPwm, Profile, load_profile
+from elegoo.profile import Profile, load_profile
 from elegoo.protocol import Param, StopReason
 
 REPS = 10
@@ -18,7 +19,6 @@ MOVE_TARGET_CM = 100
 MOVE_DRIFT_MAX_CM = 5
 MOVE_DIST_ERR_MAX_CM = 10
 WALL_PWM_MARGIN = 10
-WALL_PWM_COUNT = 3
 WALL_START_CM = 60
 CLIFF_START_CM = 50
 DONE_MARGIN_S = 1.0
@@ -31,11 +31,6 @@ class AcceptTest(enum.StrEnum):
     MOVE = "move"
     WALL = "wall"
     CLIFF = "cliff"
-
-
-class CliffTarget(enum.StrEnum):
-    TAPE = "tape"
-    EDGE = "edge"
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -59,14 +54,15 @@ def ask_yes(prompt: str) -> bool:
     return answer == YES
 
 
-def wall_pwms(min_pwm: MinPwm, *, max_pwm: int) -> tuple[int, ...]:
-    """Spaces the PWMs evenly from just above the higher min PWM to max_pwm."""
-    low = max(min_pwm.left, min_pwm.right) + WALL_PWM_MARGIN
-    return tuple(low + (max_pwm - low) * step // (WALL_PWM_COUNT - 1) for step in range(WALL_PWM_COUNT))
+def wall_pwms(profile: Profile, *, max_pwm: int) -> tuple[int, int, int]:
+    if profile.min_pwm is None:
+        raise ProfileError("profile has no min PWM calibration")
+    low = max(profile.min_pwm.left, profile.min_pwm.right) + WALL_PWM_MARGIN
+    return low, (low + max_pwm) // 2, max_pwm
 
 
 def turn_rep(car: Car) -> RepResult:
-    input("Put the car on the floor protractor at 0 deg. Press Enter, then keep the car still for 3 s.")
+    _wait_placed("Put the car on the floor protractor at 0 deg.")
     car.gyro()
     car.turn(TURN_TARGET_DEG)
     reason = car.wait_done(TURN_DONE_TIMEOUT_S)
@@ -78,10 +74,7 @@ def turn_rep(car: Car) -> RepResult:
 
 
 def move_rep(car: Car, profile: Profile) -> RepResult:
-    input(
-        f"Put the car at the start of the floor tape line, {MOVE_TARGET_CM} cm of free space ahead."
-        " Press Enter, then keep the car still for 3 s."
-    )
+    _wait_placed(f"Put the car at the start of the floor tape line, {MOVE_TARGET_CM} cm of free space ahead.")
     car.gyro()
     duration_ms = profile.ms_for_cm(
         MOVE_TARGET_CM,
@@ -101,7 +94,7 @@ def move_rep(car: Car, profile: Profile) -> RepResult:
 
 
 def wall_rep(car: Car, *, pwm: int) -> RepResult:
-    input(f"Place the car ~{WALL_START_CM} cm from a wall. Press Enter, then keep the car still for 3 s.")
+    _wait_placed(f"Place the car ~{WALL_START_CM} cm from a wall.")
     reason = _move_until_stop(car, pwm)
     contact = ask_yes("Did the car touch the wall?")
     return RepResult(
@@ -110,40 +103,34 @@ def wall_rep(car: Car, *, pwm: int) -> RepResult:
     )
 
 
-def cliff_rep(car: Car, *, target: CliffTarget) -> RepResult:
-    input(
-        f"Place the car ~{CLIFF_START_CM} cm before the {target}. Hold a hand ready."
-        " Press Enter, then keep the car still for 3 s."
-    )
+def cliff_rep(car: Car) -> RepResult:
+    _wait_placed(f"Place the car ~{CLIFF_START_CM} cm before the black tape or the table edge. Hold a hand ready.")
     reason = _move_until_stop(car, int(car.params()[Param.MAX_PWM]))
-    reached = ask_yes(f"Did a wheel reach the {target}?")
+    reached = ask_yes("Did a wheel reach the tape or the edge?")
     return RepResult(
         passed=reason is StopReason.CLIFF and not reached,
-        measurement=f"{reason}, {'a wheel reached' if reached else 'no wheel reached'} the {target}",
+        measurement=f"{reason}, {'a wheel reached' if reached else 'no wheel reached'} the tape or the edge",
     )
 
 
-def run_reps(rep: Callable[[int], RepResult], *, reps: int) -> None:
-    """Calls `rep` with the rep index."""
+def run_reps(rep: Callable[[], RepResult], *, reps: int) -> None:
     passed = 0
     for index in range(reps):
         print(f"Rep {index + 1}/{reps}")
-        result = rep(index)
+        result = rep()
         print(f"Rep {index + 1}: {'pass' if result.passed else 'fail'}, {result.measurement}")
         passed += result.passed
     print(f"Total: {passed}/{reps} pass")
+
+
+def _wait_placed(place: str) -> None:
+    input(f"{place} Press Enter, then keep the car still for 3 s.")
 
 
 def _move_until_stop(car: Car, pwm: int) -> StopReason:
     with move_pwm_restored(car):
         duration_ms = move_at(car, pwm)
         return car.wait_done(duration_ms / MS_PER_S + DONE_MARGIN_S)
-
-
-def _min_pwm(profile: Profile) -> MinPwm:
-    if profile.min_pwm is None:
-        raise ProfileError("profile has no min PWM calibration")
-    return profile.min_pwm
 
 
 def main() -> None:
@@ -155,9 +142,8 @@ def main() -> None:
     tests = parser.add_subparsers(dest="test", required=True)
     tests.add_parser(AcceptTest.TURN, help=f"turn {TURN_TARGET_DEG} deg, measure the angle")
     tests.add_parser(AcceptTest.MOVE, help=f"move {MOVE_TARGET_CM} cm, measure the drift and the distance")
-    tests.add_parser(AcceptTest.WALL, help=f"move toward a wall at {WALL_PWM_COUNT} PWMs, check the sonar stop")
-    cliff = tests.add_parser(AcceptTest.CLIFF, help="move at max_pwm toward black tape or a table edge")
-    cliff.add_argument("target", choices=list(CliffTarget))
+    tests.add_parser(AcceptTest.WALL, help="move toward a wall at 3 PWMs, check the sonar stop")
+    tests.add_parser(AcceptTest.CLIFF, help="move at max_pwm toward black tape or a table edge")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     profile = load_profile(PROFILE_PATH)
@@ -166,14 +152,14 @@ def main() -> None:
         car.tele(TELE_PERIOD_MS)
         match AcceptTest(args.test):
             case AcceptTest.TURN:
-                run_reps(lambda _: turn_rep(car), reps=args.reps)
+                run_reps(lambda: turn_rep(car), reps=args.reps)
             case AcceptTest.MOVE:
-                run_reps(lambda _: move_rep(car, profile), reps=args.reps)
+                run_reps(lambda: move_rep(car, profile), reps=args.reps)
             case AcceptTest.WALL:
-                pwms = wall_pwms(_min_pwm(profile), max_pwm=int(car.params()[Param.MAX_PWM]))
-                run_reps(lambda index: wall_rep(car, pwm=pwms[index % len(pwms)]), reps=args.reps)
+                pwms = itertools.cycle(wall_pwms(profile, max_pwm=int(car.params()[Param.MAX_PWM])))
+                run_reps(lambda: wall_rep(car, pwm=next(pwms)), reps=args.reps)
             case AcceptTest.CLIFF:
-                run_reps(lambda _: cliff_rep(car, target=CliffTarget(args.target)), reps=args.reps)
+                run_reps(lambda: cliff_rep(car), reps=args.reps)
         car.tele(0)
 
 

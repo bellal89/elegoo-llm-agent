@@ -34,7 +34,7 @@ Run `make accept-usb TEST=<test>`, in the order of the table below. Each test ma
 | `turn` | Make a protractor from tape on the floor. Put the car axis at 0°. After the turn, read the angle. | Reason `done`, angle 90 ± 5°. |
 | `move` | Make a straight tape line of 100 cm with a start mark, and 50 cm of free floor after its end. Put the front wheels on the start mark, the car along the line. After the stop, measure the drift (car center to the line) and the distance (front wheels to the start mark). | Reason `done`, drift ≤ 5 cm, distance 100 ± 10 cm. |
 | `wall` | Put the car 60 cm from the wall, facing it. The PWM cycles through 3 values, from the higher `min_pwm` + 10 to `max_pwm`. If the car does not brake, catch it and answer `y`. | Reason `sonar`, no contact. |
-| `cliff tape` | Put black tape, 3–4 cm wide, across the path, 50 cm ahead of the car. If the car crosses the tape, the tape is too light: use a different tape. | Reason `cliff`, no wheel on the tape. |
-| `cliff edge` | Run only after `cliff tape` passes. Put the car on the table, 50 cm from the edge, square to it. Hold a hand at the edge. | Reason `cliff`, no wheel over the edge. |
+| `cliff`, black tape | Put black tape, 3–4 cm wide, across the path, 50 cm ahead of the car. If the car crosses the tape, the tape is too light: use a different tape. | Reason `cliff`, no wheel on the tape. |
+| `cliff`, table edge | Run only after the black tape run passes. Put the car on the table, 50 cm from the edge, square to it. Hold a hand at the edge. | Reason `cliff`, no wheel over the edge. |
 
 Results: [results-2026-11-11.md](results-2026-11-11.md).

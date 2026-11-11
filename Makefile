@@ -35,7 +35,7 @@ calibrate-usb:
 calibrate-wifi:
 	uv run python -m elegoo.calibrate --tcp $(STEP)
 
-# TEST: turn, move, wall, "cliff tape" or "cliff edge". Example: make accept-usb TEST="cliff tape".
+# TEST: turn, move, wall or cliff. Example: make accept-usb TEST=wall.
 accept-usb:
 	uv run python -m elegoo.accept --port $(PORT) $(TEST)
 
