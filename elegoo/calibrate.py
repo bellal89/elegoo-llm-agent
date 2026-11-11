@@ -154,7 +154,9 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
     batt_mvs: list[int] = []
     with _move_pwm_restored(car):
         for pwm in _run_pwms(car):
-            input(f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Move the hand away. Press Enter.")
+            input(
+                f"Place the car ~150 cm from a wall for the speed run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
+            )
             _start_wall_run(car, pwm)
             teles = list(_motion_teles(car, MotionKind.MOVE))
             logger.info("Speed run at PWM %s ended: %s", pwm, car.wait_done(DONE_TIMEOUT_S))
@@ -194,7 +196,9 @@ def _yaw_rates(car: Car, side: Side) -> Iterator[tuple[int, float]]:
 
 
 def _brake_cm(car: Car, pwm: int) -> int:
-    input(f"Place the car ~150 cm from a wall for the brake run at PWM {pwm}. Move the hand away. Press Enter.")
+    input(
+        f"Place the car ~150 cm from a wall for the brake run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
+    )
     _start_wall_run(car, pwm)
     trigger = brake_trigger(_motion_teles(car, MotionKind.MOVE))
     if trigger is None:
