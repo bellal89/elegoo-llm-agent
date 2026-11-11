@@ -47,7 +47,7 @@ def test_wall_pwms_start_above_min_pwm() -> None:
 @pytest.mark.parametrize(
     ("reason", "angle", "passed"),
     [
-        pytest.param("done", "86", True, id="pass"),
+        pytest.param("done", "85", True, id="pass"),
         pytest.param("done", "84.5", False, id="angle error"),
         pytest.param("sonar", "90", False, id="sonar stop"),
     ],
@@ -62,17 +62,24 @@ def test_turn_rep(
 
 
 @pytest.mark.parametrize(
-    ("drift", "distance", "passed"),
+    ("reason", "drift", "distance", "passed"),
     [
-        pytest.param("-5", "91", True, id="pass"),
-        pytest.param("5.5", "100", False, id="drift"),
-        pytest.param("0", "111", False, id="distance error"),
+        pytest.param("done", "-5", "90", True, id="pass"),
+        pytest.param("done", "5.5", "100", False, id="drift"),
+        pytest.param("done", "0", "111", False, id="distance error"),
+        pytest.param("sonar", "0", "100", False, id="sonar stop"),
     ],
 )
 def test_move_rep(
-    accept_link: FakeLink, car: Car, monkeypatch: pytest.MonkeyPatch, drift: str, distance: str, passed: bool
+    accept_link: FakeLink,
+    car: Car,
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+    drift: str,
+    distance: str,
+    passed: bool,
 ) -> None:
-    accept_link.script["{move,2000}"] = ["{ok,move}", "{done,move,done}"]
+    accept_link.script["{move,2000}"] = ["{ok,move}", f"{{done,move,{reason}}}"]
     answers(monkeypatch, "", drift, distance)
     assert move_rep(car, PROFILE).passed is passed
 
