@@ -98,17 +98,17 @@ def test_wall_rep(
 
 
 @pytest.mark.parametrize(
-    ("reason", "on_surface", "passed"),
+    ("reason", "reached", "passed"),
     [
-        pytest.param("cliff", "y", True, id="pass"),
-        pytest.param("cliff", "n", False, id="wheel over the edge"),
-        pytest.param("sonar", "y", False, id="no cliff stop"),
+        pytest.param("cliff", "n", True, id="pass"),
+        pytest.param("cliff", "y", False, id="wheel reached the edge"),
+        pytest.param("sonar", "n", False, id="no cliff stop"),
     ],
 )
 def test_cliff_rep(
-    accept_link: FakeLink, car: Car, monkeypatch: pytest.MonkeyPatch, reason: str, on_surface: str, passed: bool
+    accept_link: FakeLink, car: Car, monkeypatch: pytest.MonkeyPatch, reason: str, reached: str, passed: bool
 ) -> None:
     accept_link.script["{move,5000}"] = ["{ok,move}", f"{{done,move,{reason}}}"]
-    answers(monkeypatch, "", on_surface)
+    answers(monkeypatch, "", reached)
     assert cliff_rep(car, target=CliffTarget.EDGE).passed is passed
     assert "{set,move_pwm,150}" in accept_link.sent

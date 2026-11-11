@@ -116,10 +116,10 @@ def cliff_rep(car: Car, *, target: CliffTarget) -> RepResult:
         " Press Enter, then keep the car still for 3 s."
     )
     reason = _move_until_stop(car, int(car.params()[Param.MAX_PWM]))
-    on_surface = ask_yes("Are all wheels on the surface?")
+    reached = ask_yes(f"Did a wheel reach the {target}?")
     return RepResult(
-        passed=reason is StopReason.CLIFF and on_surface,
-        measurement=f"{reason}, {'wheels on the surface' if on_surface else 'wheel over the edge'}",
+        passed=reason is StopReason.CLIFF and not reached,
+        measurement=f"{reason}, {'a wheel reached' if reached else 'no wheel reached'} the {target}",
     )
 
 
