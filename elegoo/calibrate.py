@@ -226,10 +226,8 @@ def _start_wall_run(car: Car, *, step: Step, pwm: int) -> None:
 
     Measures the gyro bias first: a bias error from the boot, when the car can be in a hand, makes the car arc.
     """
-    usb_check = " Make sure that the USB cable is connected." if car.usb else ""
     input(
-        f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}.{usb_check}"
-        " Press Enter, then keep the car still for 2 s."
+        f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}. Press Enter, then keep the car still for 2 s."
     )
     car.gyro()
     car.set_param(Param.MOVE_PWM, pwm)

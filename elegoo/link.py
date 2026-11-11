@@ -62,7 +62,9 @@ class SerialLink:
         try:
             self._serial = serial.Serial(port, BAUD, timeout=READ_TIMEOUT_S)
         except OSError as error:
-            raise LinkError(f"cannot open {port}: {error}") from error
+            raise LinkError(
+                f"cannot open {port}: {error}. Connect the car to the computer with a USB cable."
+            ) from error
         self._lock = threading.Lock()
         self._frames = _FrameBuffer()
 
