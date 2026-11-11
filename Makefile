@@ -1,7 +1,8 @@
 PORT := /dev/cu.usbserial-1110
 STEP := all
+TEST := turn
 
-.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi
+.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi accept-usb accept-wifi
 
 init:
 	uv python install
@@ -33,3 +34,10 @@ calibrate-usb:
 
 calibrate-wifi:
 	uv run python -m elegoo.calibrate --tcp $(STEP)
+
+# TEST: turn, move, wall or cliff. Example: make accept-usb TEST=wall.
+accept-usb:
+	uv run python -m elegoo.accept --port $(PORT) $(TEST)
+
+accept-wifi:
+	uv run python -m elegoo.accept --tcp $(TEST)

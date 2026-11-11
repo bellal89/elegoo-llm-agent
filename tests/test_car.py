@@ -17,6 +17,7 @@ STOP_FRAME = "{stop}"
 TELE_FRAME = "{t,1234,30,45,1017,46,9000,7810,turn,none}"
 NEXT_TELE_FRAME = "{t,1334,29,45,1017,46,9100,7810,turn,none}"
 BOOT_DELAY_S = 0.2
+GYRO_REPLY_DELAY_S = 0.35
 
 
 def wait_until(condition: Callable[[], bool]) -> bool:
@@ -137,6 +138,14 @@ def test_next_tele_times_out(car: Car) -> None:
 def test_heartbeat_runs(link: FakeLink, car: Car) -> None:
     time.sleep(WAIT_S)
     assert link.sent.count(HB_FRAME) >= 2
+
+
+def test_gyro_pauses_heartbeat(link: FakeLink, car: Car) -> None:
+    threading.Timer(GYRO_REPLY_DELAY_S, link.push, ["{ok,gyro}"]).start()
+    car.gyro()
+    sent = link.sent
+    assert HB_FRAME not in sent[sent.index("{gyro}") :]
+    assert wait_until(lambda: link.sent[-1] == HB_FRAME)
 
 
 def test_read_failure_stops_heartbeat(link: FakeLink) -> None:

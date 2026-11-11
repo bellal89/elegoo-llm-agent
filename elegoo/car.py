@@ -56,6 +56,7 @@ class Car:
         self._imu_ok: bool | None = None
         self._pwm_limit: int | None = None
         self._stopped = threading.Event()
+        self._hb_paused = threading.Event()
         self._reader = threading.Thread(target=self._read_frames, daemon=True)
         self._heartbeat = threading.Thread(target=self._send_heartbeats, daemon=True)
         try:
@@ -104,7 +105,13 @@ class Car:
 
     def gyro(self) -> None:
         """Centers the sonar servo and measures the gyro bias. The car must not move for 2.5 s."""
-        self._command(Command.GYRO, timeout_s=GYRO_TIMEOUT_S)
+        # The UNO does not read the port during the bias. Heartbeats overflow its 63-byte RX buffer,
+        # and the cut frame gives an {err,frame} after the {ok,gyro}.
+        self._hb_paused.set()
+        try:
+            self._command(Command.GYRO, timeout_s=GYRO_TIMEOUT_S)
+        finally:
+            self._hb_paused.clear()
 
     def set_param(self, param: Param, value: float) -> None:
         self._command(Command.SET, param, value)
@@ -247,7 +254,8 @@ class Car:
     def _send_heartbeats(self) -> None:
         try:
             while not self._stopped.wait(self._hb_period_s):
-                self._send(encode(Command.HB))
+                if not self._hb_paused.is_set():
+                    self._send(encode(Command.HB))
         except Exception:
             logger.exception("Heartbeat failed")
 

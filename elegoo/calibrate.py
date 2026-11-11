@@ -152,7 +152,7 @@ def calibrate_minpwm(car: Car, profile: Profile) -> Profile:
 
 
 def calibrate_brake(car: Car, profile: Profile) -> Profile:
-    with _move_pwm_restored(car):
+    with move_pwm_restored(car):
         brake = tuple((pwm, _brake_cm(car, pwm)) for pwm in _run_pwms(car))
     car.set_param(Param.SONAR_STOP_CM, round(max(cm for _, cm in brake)) + SONAR_STOP_MARGIN_CM)
     return dataclasses.replace(profile, brake=brake)
@@ -161,7 +161,7 @@ def calibrate_brake(car: Car, profile: Profile) -> Profile:
 def calibrate_speed(car: Car, profile: Profile) -> Profile:
     speed: list[tuple[int, float]] = []
     batt_mvs: list[int] = []
-    with _move_pwm_restored(car):
+    with move_pwm_restored(car):
         for pwm in _run_pwms(car):
             _start_wall_run(car, step=Step.SPEED, pwm=pwm)
             teles = list(_motion_teles(car, MotionKind.MOVE))
@@ -172,6 +172,28 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
             batt_mvs.extend(tele.batt_mv for tele in teles)
     logger.info("Speed: %s", speed)
     return dataclasses.replace(profile, speed=tuple(speed), batt_mv=round(statistics.mean(batt_mvs)))
+
+
+def move_at(car: Car, pwm: int) -> int:
+    """Measures the gyro bias, then moves forward with heading hold for max_cmd_ms. Returns the duration in ms.
+
+    An open loop drive turns away from the course. A bias error from the boot, when the car can be in a hand, makes
+    the car arc.
+    """
+    car.gyro()
+    car.set_param(Param.MOVE_PWM, pwm)
+    duration_ms = int(car.params()[Param.MAX_CMD_MS])
+    car.move(duration_ms)
+    return duration_ms
+
+
+@contextlib.contextmanager
+def move_pwm_restored(car: Car) -> Iterator[None]:
+    move_pwm = car.params()[Param.MOVE_PWM]
+    try:
+        yield
+    finally:
+        car.set_param(Param.MOVE_PWM, move_pwm)
 
 
 def calibrate_all(car: Car) -> None:
@@ -232,25 +254,10 @@ def _run_pwms(car: Car) -> tuple[int, int, int]:
 
 
 def _start_wall_run(car: Car, *, step: Step, pwm: int) -> None:
-    """Moves toward the wall with heading hold. An open loop drive turns away from the wall.
-
-    Measures the gyro bias first: a bias error from the boot, when the car can be in a hand, makes the car arc.
-    """
     input(
         f"Place the car ~150 cm from a wall for the {step} run at PWM {pwm}. Press Enter, then keep the car still for 3 s."
     )
-    car.gyro()
-    car.set_param(Param.MOVE_PWM, pwm)
-    car.move(int(car.params()[Param.MAX_CMD_MS]))
-
-
-@contextlib.contextmanager
-def _move_pwm_restored(car: Car) -> Iterator[None]:
-    move_pwm = car.params()[Param.MOVE_PWM]
-    try:
-        yield
-    finally:
-        car.set_param(Param.MOVE_PWM, move_pwm)
+    move_at(car, pwm)
 
 
 def _motion_teles(car: Car, motion: MotionKind) -> Iterator[Tele]:

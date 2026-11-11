@@ -2,6 +2,15 @@
 
 A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a natural-language instruction. The project compares three agent "brains": a frontier model through an API, a local open model and a small fine-tuned model. This repository contains the car firmware with onboard safety and a Python host that controls and calibrates the car over USB or Wi-Fi. Details: [About](#about).
 
+## Quickstart
+
+1. Assemble the kit. The firmware supports only the version with the TB6612 motor driver and the MPU6050 shield.
+2. Install the [prerequisites](#prerequisites). Run `make init install test`.
+3. Flash the car: `make upload`.
+4. Run the [hardware test](docs/hardware-test.md).
+5. Calibrate the car and run the acceptance tests: [docs/calibration.md](docs/calibration.md).
+6. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`.
+
 ## Prerequisites
 
 - [arduino-cli](https://arduino.github.io/arduino-cli/): `brew install arduino-cli`. The first `make upload` downloads the board core and the libraries that `firmware/car/sketch.yaml` sets.
@@ -18,6 +27,8 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 | `make hardware-test` | Run the wired part of the hardware test |
 | `make calibrate-usb` | Calibrate the car over USB. Write the results to `profile.json`. `STEP` selects one step |
 | `make calibrate-wifi` | The same through the ESP32 Wi-Fi |
+| `make accept-usb` | Run an acceptance test over USB. `TEST` selects the test |
+| `make accept-wifi` | The same through the ESP32 Wi-Fi |
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 
@@ -97,7 +108,19 @@ The model plans and checks the steps at checkpoints. In front of an obstacle, th
 
 ## Auto-calibration at start
 
-Before the first task, the agent runs a short series of tests and saves a calibration profile. Reference: an ArUco marker on the wall. The camera finds the car position from it.
+Before the first task, the agent runs a short series of tests and saves a calibration profile.
+
+Done: the tests without the camera, `make calibrate-usb` ([docs/calibration.md](docs/calibration.md)).
+
+| Test | Measurement | Result |
+| --- | --- | --- |
+| Car at rest | Gyro rate | Gyro bias |
+| Line sensors on the floor and over a table edge | Sensor levels | Cliff threshold |
+| Turn in place with a rising PWM, per side | Yaw rate | Min start PWM per side |
+| Move to a wall, stop command at 60 cm | Sonar distance after the stop | Braking distance per PWM, sonar stop distance |
+| Move to a wall | Sonar distance against time | Speed per PWM at the measured battery voltage |
+
+Planned: the camera tests. Reference: an ArUco marker on the wall. The camera finds the car position from it.
 
 | Test | Measurement | Result |
 | --- | --- | --- |
@@ -187,8 +210,9 @@ The MCP server gives all models the same tools. Thus the comparison is fairer.
 Each stage ends with a result that you can check.
 
 - [ ] **MVP.** Custom firmware with simple commands, video to the computer, one task, API model, episode recording. Done when the car sometimes reaches the red object.
-- [ ] **Onboard safety.** Watchdog, sonar stop, behavior interpreter. Done when model latency cannot cause a collision.
-- [ ] **Calibration.** Tests and profile from the section above. Target: 90° turn with an error of max 10°.
+- [x] **Onboard safety.** Watchdog, sonar stop, cliff stop. Done when model latency cannot cause a collision.
+- [ ] **Behavior interpreter.** Behavior programs on the UNO, level 2 from the section above.
+- [x] **Calibration.** The tests without the camera and the profile from the section above. Target: 90° turn with an error of max 5°. Acceptance: [docs/results-2026-11-11.md](docs/results-2026-11-11.md). The camera tests stay planned.
 - [ ] **Agent and dashboard.** Plan, step checks, replanning, MCP server, web UI with video and chat.
 - [ ] **Task set and baselines.** Five tasks, live runs with the proprietary model, the classic CV and the zero-shot VLM baselines, offline replay of the recordings.
 - [ ] **Open and fine-tuned models.** Selection on Point-Bench, local inference, teacher labels, LoRA, hand labels for the test frames, experiments A and B, non-inferiority test of the step checks.
