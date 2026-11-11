@@ -175,10 +175,10 @@ def calibrate_speed(car: Car, profile: Profile) -> Profile:
 
 
 def move_at(car: Car, pwm: int) -> int:
-    """Moves forward with heading hold for max_cmd_ms. Returns the duration in ms.
+    """Measures the gyro bias, then moves forward with heading hold for max_cmd_ms. Returns the duration in ms.
 
-    An open loop drive turns away from the course.
-    Measures the gyro bias first: a bias error from the boot, when the car can be in a hand, makes the car arc.
+    An open loop drive turns away from the course. A bias error from the boot, when the car can be in a hand, makes
+    the car arc.
     """
     car.gyro()
     car.set_param(Param.MOVE_PWM, pwm)

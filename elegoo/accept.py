@@ -94,7 +94,7 @@ def move_rep(car: Car, profile: Profile) -> RepResult:
 
 
 def wall_rep(car: Car, *, pwm: int) -> RepResult:
-    _wait_placed(f"Place the car ~{WALL_START_CM} cm from a wall.")
+    _wait_placed(f"Put the car ~{WALL_START_CM} cm from a wall.")
     reason = _move_until_stop(car, pwm)
     contact = ask_yes("Did the car touch the wall?")
     return RepResult(
@@ -104,7 +104,7 @@ def wall_rep(car: Car, *, pwm: int) -> RepResult:
 
 
 def cliff_rep(car: Car) -> RepResult:
-    _wait_placed(f"Place the car ~{CLIFF_START_CM} cm before the black tape or the table edge. Hold a hand ready.")
+    _wait_placed(f"Put the car ~{CLIFF_START_CM} cm before the black tape or the table edge. Hold a hand ready.")
     reason = _move_until_stop(car, int(car.params()[Param.MAX_PWM]))
     reached = ask_yes("Did a wheel reach the tape or the edge?")
     return RepResult(

@@ -6,7 +6,7 @@ Run after the hardware test, after a hardware change, or when the `move` distanc
 
 - Laminate floor without carpet. A wall with 150 cm of free floor in front of it.
 - A table with a free edge.
-- Battery at approximately 8 V. A low battery gives a short braking distance and a low speed.
+- Calibrate at approximately 8 V. At a low battery, the measured speed and braking distance are too small for a full battery.
 - S1 at "upload", USB connected, battery switch on. Keep the USB cable slack: a tight cable turns the car.
 - For Wi-Fi: S1 at "cam", the Mac on the car access point. Use `make calibrate-wifi` and `make accept-wifi`.
 

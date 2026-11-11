@@ -212,7 +212,7 @@ Each stage ends with a result that you can check.
 - [ ] **MVP.** Custom firmware with simple commands, video to the computer, one task, API model, episode recording. Done when the car sometimes reaches the red object.
 - [x] **Onboard safety.** Watchdog, sonar stop, cliff stop. Done when model latency cannot cause a collision.
 - [ ] **Behavior interpreter.** Behavior programs on the UNO, level 2 from the section above.
-- [x] **Calibration.** Tests without the camera and profile from the section above. Target: 90° turn with an error of max 5°. Acceptance: [docs/results-2026-11-11.md](docs/results-2026-11-11.md). The camera tests stay planned.
+- [x] **Calibration.** The tests without the camera and the profile from the section above. Target: 90° turn with an error of max 5°. Acceptance: [docs/results-2026-11-11.md](docs/results-2026-11-11.md). The camera tests stay planned.
 - [ ] **Agent and dashboard.** Plan, step checks, replanning, MCP server, web UI with video and chat.
 - [ ] **Task set and baselines.** Five tasks, live runs with the proprietary model, the classic CV and the zero-shot VLM baselines, offline replay of the recordings.
 - [ ] **Open and fine-tuned models.** Selection on Point-Bench, local inference, teacher labels, LoRA, hand labels for the test frames, experiments A and B, non-inferiority test of the step checks.
