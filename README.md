@@ -6,7 +6,7 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 
 1. Assemble the kit. The firmware supports only the version with the TB6612 motor driver and the MPU6050 shield.
 2. Install the [prerequisites](#prerequisites). Run `make init install test`.
-3. Flash and test the car: [docs/hardware-test.md](docs/hardware-test.md).
+3. Set S1 to "upload", connect USB and set the battery switch to on. Run `make upload` and follow the prompt. The hardware test must print `ALL PASS`.
 4. Calibrate the car and run the acceptance tests: [docs/calibration.md](docs/calibration.md).
 5. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`.
 
