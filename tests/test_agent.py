@@ -56,7 +56,6 @@ def recorder(tmp_path: Path) -> EpisodeRecorder:
         started_at="2026-11-12T10:00:00Z",
         profile=PROFILE,
         batt_mv=BATT_MV,
-        imu_ok=True,
     )
     return EpisodeRecorder(header, root=tmp_path)
 

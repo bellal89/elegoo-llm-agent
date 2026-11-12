@@ -1,5 +1,4 @@
 import base64
-import copy
 import dataclasses
 import logging
 import time
@@ -74,13 +73,17 @@ class Model:
         self._model_id = model_id
         self._system = SYSTEM_PROMPT.format(sonar_stop_cm=sonar_stop_cm, success_sonar_cm=SUCCESS_SONAR_CM)
 
-    @property
-    def model_id(self) -> str:
-        return self._model_id
-
     def decide(self, request: Request, *, frame_name: str) -> Decision:
         """Raises ModelTimeoutError after DECISION_TIMEOUT_S. `frame_name` replaces the image in the recorded request."""
-        params = self._params(request)
+        image = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": FRAME_MEDIA_TYPE,
+                "data": base64.standard_b64encode(request.frame).decode(),
+            },
+        }
+        params = self._params(request, image=image)
         start_s = time.monotonic()
         try:
             message = self._client.messages.create(**params)
@@ -93,7 +96,7 @@ class Model:
             if len(calls) == 1 and message.stop_reason != "refusal"
             else None,
             stop_reason=message.stop_reason,
-            request=self._recorded(params, frame_name),
+            request=self._params(request, image={"type": "image", "frame": frame_name}),
             response=message.to_dict(),
             latency_ms=latency_ms,
             input_tokens=message.usage.input_tokens,
@@ -109,21 +112,13 @@ class Model:
         )
         return decision
 
-    def _params(self, request: Request) -> dict[str, Any]:
+    def _params(self, request: Request, *, image: dict[str, Any]) -> dict[str, Any]:
         sonar = NO_ECHO_TEXT if request.tele.sonar_cm == NO_ECHO_CM else f"{request.tele.sonar_cm} cm"
         user_text = USER_TEXT.format(
             instruction=request.instruction,
             sonar=sonar,
             history="\n".join(request.history) or NO_HISTORY_TEXT,
         )
-        image = {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": FRAME_MEDIA_TYPE,
-                "data": base64.standard_b64encode(request.frame).decode(),
-            },
-        }
         return {
             "model": self._model_id,
             "max_tokens": MAX_TOKENS,
@@ -133,8 +128,3 @@ class Model:
             "output_config": {"effort": EFFORT},
             "messages": [{"role": "user", "content": [image, {"type": "text", "text": user_text}]}],
         }
-
-    def _recorded(self, params: dict[str, Any], frame_name: str) -> dict[str, Any]:
-        recorded = copy.deepcopy(params)
-        recorded["messages"][0]["content"][0] = {"type": "image", "frame": frame_name}
-        return recorded

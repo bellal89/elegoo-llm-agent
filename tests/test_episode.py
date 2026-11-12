@@ -22,7 +22,6 @@ HEADER = EpisodeHeader(
     started_at="2026-11-12T10:00:00Z",
     profile=Profile(batt_mv=7658),
     batt_mv=7800,
-    imu_ok=True,
 )
 STEP = StepRecord(
     index=0,

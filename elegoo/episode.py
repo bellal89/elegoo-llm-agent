@@ -39,7 +39,6 @@ class EpisodeHeader:
     started_at: str
     profile: Profile
     batt_mv: int
-    imu_ok: bool
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
@@ -47,17 +46,17 @@ class StepRecord:
     index: int
     frame: str
     tele_before: Tele
-    request: dict[str, Any] | None
-    response: dict[str, Any] | None
-    tool: str | None
-    tool_input: dict[str, Any] | None
     outcome: StepOutcome
-    error: str | None
-    latency_ms: int
-    input_tokens: int
-    output_tokens: int
-    stop_reason: StopReason | None
-    tele_after: Tele | None
+    request: dict[str, Any] | None = None
+    response: dict[str, Any] | None = None
+    tool: str | None = None
+    tool_input: dict[str, Any] | None = None
+    error: str | None = None
+    latency_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    stop_reason: StopReason | None = None
+    tele_after: Tele | None = None
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

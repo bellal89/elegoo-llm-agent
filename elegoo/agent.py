@@ -15,7 +15,7 @@ from elegoo.errors import ElegooError, ModelTimeoutError, NotReadyError, Profile
 from elegoo.link import TcpLink
 from elegoo.model import Model, Request
 from elegoo.profile import Profile, load_profile
-from elegoo.protocol import Param, StopReason, Tele
+from elegoo.protocol import Param, StopReason
 from elegoo.tools import MOVE_CM_MIN, Action, Finish, Move, Turn, parse_action
 
 MAX_DECISIONS = 20
@@ -78,7 +78,7 @@ def _run_steps(
         frame = capture()
         tele = car.next_tele(TELE_TIMEOUT_S)
         request = Request(instruction=instruction, frame=frame, tele=tele, history=tuple(history))
-        step = _empty_step(index, recorder=recorder, tele=tele)
+        step = StepRecord(index=index, frame=recorder.frame_name(index), tele_before=tele, outcome=StepOutcome.ACTION)
         result: EpisodeResult | None = None
         # A failed or interrupted step is training data too: record it before the exception leaves.
         try:
@@ -105,25 +105,6 @@ def _run_steps(
         history.append(_history_line(step))
         logger.info("Step %s", history[-1])
     return EpisodeResult.BUDGET
-
-
-def _empty_step(index: int, *, recorder: EpisodeRecorder, tele: Tele) -> StepRecord:
-    return StepRecord(
-        index=index,
-        frame=recorder.frame_name(index),
-        tele_before=tele,
-        request=None,
-        response=None,
-        tool=None,
-        tool_input=None,
-        outcome=StepOutcome.ACTION,
-        error=None,
-        latency_ms=0,
-        input_tokens=0,
-        output_tokens=0,
-        stop_reason=None,
-        tele_after=None,
-    )
 
 
 def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRecord, Action | None]:
@@ -181,7 +162,6 @@ def main() -> None:
             started_at=datetime.datetime.now(datetime.UTC).isoformat(),
             profile=profile,
             batt_mv=car.next_tele(TELE_TIMEOUT_S).batt_mv,
-            imu_ok=True,
         )
         recorder = EpisodeRecorder(header)
         result = run_episode(car, model=model, recorder=recorder, profile=profile, instruction=args.instruction)
