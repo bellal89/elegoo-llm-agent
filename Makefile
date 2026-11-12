@@ -1,8 +1,10 @@
 PORT := /dev/cu.usbserial-1110
 STEP := all
 TEST := turn
+TASK := drive to the red box
+MODEL := claude-haiku-5-5
 
-.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi accept-usb accept-wifi
+.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi accept-usb accept-wifi agent
 
 init:
 	uv python install
@@ -42,3 +44,7 @@ accept-usb:
 
 accept-wifi:
 	uv run python -m elegoo.accept --tcp $(TEST)
+
+# The computer must be on the car Wi-Fi and have internet through the phone: see README, Usage.
+agent:
+	uv run python -m elegoo.agent --model $(MODEL) "$(TASK)"

@@ -37,3 +37,7 @@ class ToolCallError(ElegooError):
 
 class ModelTimeoutError(ElegooError):
     pass
+
+
+class NotReadyError(ElegooError):
+    pass
