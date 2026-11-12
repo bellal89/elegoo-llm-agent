@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from elegoo.model import Decision
 from elegoo.profile import Profile
 from elegoo.protocol import StopReason, Tele
 from elegoo.tools import TOOLS
@@ -47,14 +48,8 @@ class StepRecord:
     frame: str
     tele_before: Tele
     outcome: StepOutcome
-    request: dict[str, Any] | None = None
-    response: dict[str, Any] | None = None
-    tool: str | None = None
-    tool_input: dict[str, Any] | None = None
+    decision: Decision | None = None
     error: str | None = None
-    latency_ms: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
     stop_reason: StopReason | None = None
     tele_after: Tele | None = None
 

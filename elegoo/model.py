@@ -10,7 +10,7 @@ from elegoo.calibrate import NO_ECHO_CM
 from elegoo.car import MS_PER_S
 from elegoo.errors import ModelTimeoutError
 from elegoo.protocol import Tele
-from elegoo.tools import TOOLS
+from elegoo.tools import TOOLS, ToolCall
 
 # The spike saw one decision of 11.7 s.
 DECISION_TIMEOUT_S = 20.0
@@ -46,12 +46,6 @@ class Request:
     frame: bytes
     tele: Tele
     history: tuple[str, ...]
-
-
-@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
-class ToolCall:
-    name: str
-    input: dict[str, Any]
 
 
 @dataclasses.dataclass(frozen=True, slots=True, kw_only=True)

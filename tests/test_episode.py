@@ -3,8 +3,10 @@ from pathlib import Path
 from typing import Any
 
 from elegoo.episode import EpisodeHeader, EpisodeRecorder, EpisodeResult, StepOutcome, StepRecord, Verdict
+from elegoo.model import Decision
 from elegoo.profile import Profile
 from elegoo.protocol import MotionKind, StopReason, Tele
+from elegoo.tools import ToolCall
 from tests.conftest import JPEG
 
 TELE = Tele(
@@ -27,15 +29,16 @@ STEP = StepRecord(
     index=0,
     frame="frames/000.jpg",
     tele_before=TELE,
-    request={"model": "claude-haiku-5-5"},
-    response={"stop_reason": "tool_use"},
-    tool="move",
-    tool_input={"cm": 30},
     outcome=StepOutcome.ACTION,
-    error=None,
-    latency_ms=1700,
-    input_tokens=1400,
-    output_tokens=200,
+    decision=Decision(
+        call=ToolCall(name="move", input={"cm": 30}),
+        stop_reason="tool_use",
+        request={"model": "claude-haiku-5-5"},
+        response={"stop_reason": "tool_use"},
+        latency_ms=1700,
+        input_tokens=1400,
+        output_tokens=200,
+    ),
     stop_reason=StopReason.DONE,
     tele_after=TELE,
 )
@@ -61,6 +64,7 @@ def test_recorder_writes_episode(tmp_path: Path) -> None:
     assert step["frame"] == "frames/000.jpg"
     assert step["tele_before"]["sonar_cm"] == TELE.sonar_cm
     assert step["outcome"] == "action"
+    assert step["decision"]["call"] == {"name": "move", "input": {"cm": 30}}
     assert (recorder.dir / "frames/000.jpg").read_bytes() == JPEG
 
 

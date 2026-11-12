@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from elegoo.errors import ToolCallError
-from elegoo.tools import TOOLS, Action, Finish, Move, ToolName, Turn, parse_action
+from elegoo.tools import TOOLS, Action, Finish, Move, ToolCall, ToolName, Turn, parse_action
 
 
 @pytest.mark.parametrize(
@@ -19,7 +19,7 @@ from elegoo.tools import TOOLS, Action, Finish, Move, ToolName, Turn, parse_acti
     ],
 )
 def test_parse_action(name: str, args: dict[str, Any], action: Action) -> None:
-    assert parse_action(name, args) == action
+    assert parse_action(ToolCall(name=name, input=args)) == action
 
 
 @pytest.mark.parametrize(
@@ -38,7 +38,7 @@ def test_parse_action(name: str, args: dict[str, Any], action: Action) -> None:
 )
 def test_parse_action_rejects(name: str, args: dict[str, Any]) -> None:
     with pytest.raises(ToolCallError):
-        parse_action(name, args)
+        parse_action(ToolCall(name=name, input=args))
 
 
 def test_tools_match_tool_names() -> None:

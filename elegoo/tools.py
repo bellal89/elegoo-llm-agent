@@ -34,6 +34,12 @@ class Finish:
 type Action = Turn | Move | Finish
 
 
+@dataclasses.dataclass(frozen=True, slots=True, kw_only=True)
+class ToolCall:
+    name: str
+    input: dict[str, Any]
+
+
 # Strict tool schemas do not accept minimum and maximum: parse_action checks the ranges.
 TOOLS: list[dict[str, Any]] = [
     {
@@ -72,29 +78,29 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-def parse_action(name: str, args: dict[str, Any]) -> Action:
+def parse_action(call: ToolCall) -> Action:
     """Raises ToolCallError with a message for the model."""
     try:
-        tool = ToolName(name)
+        tool = ToolName(call.name)
     except ValueError:
-        raise ToolCallError(f"unknown tool {name}") from None
+        raise ToolCallError(f"unknown tool {call.name}") from None
     match tool:
         case ToolName.TURN:
-            deg = _arg(args, "deg", int)
+            deg = _arg(call, "deg", int)
             if abs(deg) > TURN_DEG_MAX:
                 raise ToolCallError(f"deg must be {-TURN_DEG_MAX}..{TURN_DEG_MAX}, got {deg}")
             return Turn(deg=deg)
         case ToolName.MOVE:
-            cm = _arg(args, "cm", int)
+            cm = _arg(call, "cm", int)
             if not MOVE_CM_MIN <= cm <= MOVE_CM_MAX:
                 raise ToolCallError(f"cm must be {MOVE_CM_MIN}..{MOVE_CM_MAX}, got {cm}")
             return Move(cm=cm)
         case ToolName.FINISH:
-            return Finish(reached=_arg(args, "reached", bool), reason=_arg(args, "reason", str))
+            return Finish(reached=_arg(call, "reached", bool), reason=_arg(call, "reason", str))
 
 
-def _arg[T](args: dict[str, Any], key: str, kind: type[T]) -> T:
-    value = args.get(key)
+def _arg[T](call: ToolCall, key: str, kind: type[T]) -> T:
+    value = call.input.get(key)
     # Exact type: bool is a subclass of int.
     if type(value) is not kind:
         raise ToolCallError(f"{key} must be {kind.__name__}, got {value!r}")

@@ -8,17 +8,17 @@ import httpx2
 import pytest
 
 from elegoo import agent
-from elegoo.agent import check_ready, execute, run_episode
+from elegoo.agent import check_ready, run_episode
 from elegoo.car import HB_MS_SERIAL, Car
 from elegoo.episode import EpisodeHeader, EpisodeRecorder, EpisodeResult
 from elegoo.errors import NotReadyError, ReplyTimeoutError
 from elegoo.model import Model
 from elegoo.profile import Profile
 from elegoo.protocol import MotionKind, StopReason
-from elegoo.tools import Move
 from tests.conftest import JPEG, MODEL_ID, FakeLink, fake_camera, model_with, reply, scripted_model, text, tool_use
 
 BATT_MV = 7800
+MOVE_PWM = 100
 PROFILE = Profile(batt_mv=BATT_MV, speed=((100, 50.0),))
 INSTRUCTION = "drive to the red box"
 TELE = f"{{t,0,106,1017,50,46,0,{BATT_MV},{MotionKind.IDLE},none}}"
@@ -67,7 +67,7 @@ def tele_car(agent_link: FakeLink, car: Car) -> Car:
 
 
 def run(car: Car, model: Model, recorder: EpisodeRecorder) -> EpisodeResult:
-    return run_episode(car, model=model, recorder=recorder, profile=PROFILE, instruction=INSTRUCTION)
+    return run_episode(car, model=model, recorder=recorder, profile=PROFILE, move_pwm=MOVE_PWM, instruction=INSTRUCTION)
 
 
 def read_steps(recorder: EpisodeRecorder) -> list[dict[str, Any]]:
@@ -175,7 +175,7 @@ def test_ctrl_c_during_move_records_the_step(
     monkeypatch.setattr(tele_car, "wait_done", interrupt)
     assert run(tele_car, scripted_model([move(30)], []), recorder) is EpisodeResult.OPERATOR
     [step] = read_steps(recorder)
-    assert (step["tool"], step["error"]) == ("move", "KeyboardInterrupt")
+    assert (step["decision"]["call"]["name"], step["error"]) == ("move", "KeyboardInterrupt")
     assert "{stop}" in agent_link.sent
 
 
@@ -221,9 +221,3 @@ def test_check_ready_rejects(link: FakeLink, imu: str, profile: Profile) -> None
     link.script["{get}"] = ["{p,move_pwm,100}", f"{{p,imu,{imu}}}", "{ok,get}"]
     with Car(link, HB_MS_SERIAL) as car, pytest.raises(NotReadyError):
         check_ready(car, profile)
-
-
-def test_execute_move_uses_profile(agent_link: FakeLink, car: Car) -> None:
-    agent_link.script["{move,500}"] = ["{ok,move}", "{done,move,done}"]
-    assert execute(car, Move(cm=25), profile=PROFILE, batt_mv=BATT_MV) is StopReason.DONE
-    assert "{move,500}" in agent_link.sent
