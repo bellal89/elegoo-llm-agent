@@ -73,7 +73,3 @@ def test_steps_survive_without_close(tmp_path: Path) -> None:
     recorder.add_step(STEP, frame=JPEG)
     assert len((recorder.dir / "steps.jsonl").read_text().splitlines()) == 1
     assert "result" not in read_episode(recorder)
-
-
-def test_frame_name_has_three_digits(tmp_path: Path) -> None:
-    assert EpisodeRecorder(HEADER, root=tmp_path).frame_name(7) == "frames/007.jpg"

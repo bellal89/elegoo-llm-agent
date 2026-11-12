@@ -51,7 +51,7 @@ def test_decide_returns_tool_call() -> None:
     [
         pytest.param([text("I see a box.")], "end_turn", id="text only"),
         pytest.param([tool_use("turn", {"deg": 20}), tool_use("move", {"cm": 10})], "tool_use", id="two calls"),
-        pytest.param([], "refusal", id="refusal"),
+        pytest.param([tool_use("turn", {"deg": 20})], "refusal", id="refusal"),
     ],
 )
 def test_decide_without_tool_call(content: list[dict[str, Any]], stop_reason: str) -> None:

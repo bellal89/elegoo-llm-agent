@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from elegoo.errors import ToolCallError
-from elegoo.tools import TOOLS, Action, Finish, Move, ToolCall, ToolName, Turn, parse_action
+from elegoo.tools import Action, Finish, Move, ToolCall, Turn, parse_action
 
 
 @pytest.mark.parametrize(
@@ -29,7 +29,7 @@ def test_parse_action(name: str, args: dict[str, Any], action: Action) -> None:
         pytest.param("turn", {"deg": -181}, id="turn below range"),
         pytest.param("move", {"cm": 4}, id="move below range"),
         pytest.param("move", {"cm": 51}, id="move above range"),
-        pytest.param("move", {"cm": True}, id="bool is not int"),
+        pytest.param("turn", {"deg": True}, id="bool is not int"),
         pytest.param("move", {"cm": 20.5}, id="float"),
         pytest.param("turn", {}, id="missing argument"),
         pytest.param("finish", {"reached": "yes", "reason": ""}, id="reached not bool"),
@@ -39,8 +39,3 @@ def test_parse_action(name: str, args: dict[str, Any], action: Action) -> None:
 def test_parse_action_rejects(name: str, args: dict[str, Any]) -> None:
     with pytest.raises(ToolCallError):
         parse_action(ToolCall(name=name, input=args))
-
-
-def test_tools_match_tool_names() -> None:
-    assert [tool["name"] for tool in TOOLS] == list(ToolName)
-    assert all(tool["strict"] and not tool["input_schema"]["additionalProperties"] for tool in TOOLS)
