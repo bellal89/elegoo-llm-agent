@@ -8,7 +8,7 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 2. Install the [prerequisites](#prerequisites). Run `make init install test`.
 3. Set S1 to "upload", connect USB and set the battery switch to on. Run `make upload` and follow the prompt. The hardware test must print `ALL PASS`.
 4. Calibrate the car and run the acceptance tests: [docs/calibration.md](docs/calibration.md).
-5. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`.
+5. Drive the car with `elegoo.car` (see [Usage](#usage)) or with the `Car` class in `elegoo/car.py`. To let an API model drive the car, run `make agent`.
 
 ## Prerequisites
 
@@ -28,8 +28,11 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 | `make calibrate-wifi` | The same through the ESP32 Wi-Fi |
 | `make accept-usb` | Run an acceptance test over USB. The car drives on the floor. `TEST` selects the test: `turn`, `move`, `wall` or `cliff` |
 | `make accept-wifi` | The same through the ESP32 Wi-Fi |
+| `make agent` | Drive the car to a target with an API model through the ESP32 Wi-Fi. `TASK` sets the instruction, `MODEL` the model. Write the episode to `runs/` |
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
+
+`make agent` needs the car Wi-Fi and the internet at the same time. Connect the Wi-Fi to the car access point and connect a phone as a USB modem (USB tethering). In the macOS network settings, put the phone service above Wi-Fi. Give the terminal app the Local Network permission (System Settings → Privacy & Security → Local Network). Set the API key in `ANTHROPIC_API_KEY`.
 
 To turn the car 90° to the right, run `uv run python -m elegoo.car --port /dev/cu.usbserial-1110 turn 90`. Through the ESP32 Wi-Fi, use `--tcp` instead of `--port PORT`.
 

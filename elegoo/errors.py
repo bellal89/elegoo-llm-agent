@@ -25,3 +25,19 @@ class ProfileError(ElegooError):
 
 class CalibrationError(ElegooError):
     pass
+
+
+class CameraError(ElegooError):
+    pass
+
+
+class ToolCallError(ElegooError):
+    pass
+
+
+class ModelTimeoutError(ElegooError):
+    pass
+
+
+class NotReadyError(ElegooError):
+    pass
