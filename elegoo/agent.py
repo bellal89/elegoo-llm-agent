@@ -86,7 +86,7 @@ def _run_steps(
 
 
 def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRecord, Action | None]:
-    """Returns the step with the decision and the action, or None for a decision without a valid tool call."""
+    """The action is None if the decision has no valid tool call."""
     try:
         decision = model.decide(request, frame_name=step.frame)
     except ModelTimeoutError as error:
@@ -104,7 +104,7 @@ def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRe
 def _act(
     car: Car, step: StepRecord, action: Action | None, *, profile: Profile, move_pwm: int, deadline_s: float
 ) -> tuple[StepRecord, EpisodeResult | None]:
-    """Returns the step with the action result and the episode result if the episode ends."""
+    """The episode result is None if the episode continues."""
     if action is not None and time.monotonic() >= deadline_s:
         return dataclasses.replace(step, error=EPISODE_TIMEOUT_ERROR), EpisodeResult.TIMEOUT
     match action:

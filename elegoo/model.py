@@ -12,10 +12,10 @@ from elegoo.errors import ModelTimeoutError
 from elegoo.protocol import Tele
 from elegoo.tools import TOOLS, ToolCall
 
-# The spike saw one decision of 11.7 s.
+# One test decision took 11.7 s.
 DECISION_TIMEOUT_S = 20.0
 MAX_TOKENS = 4000
-# The default effort differs between models.
+# Set the effort explicitly: the default differs between models.
 EFFORT = "medium"
 SUCCESS_SONAR_CM = 30
 FRAME_MEDIA_TYPE = "image/jpeg"
