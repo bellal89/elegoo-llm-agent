@@ -1,6 +1,8 @@
 import queue
 import threading
 import time
+import typing
+import urllib.request
 from collections.abc import Iterator
 
 import pytest
@@ -14,6 +16,8 @@ DEFAULT_SCRIPT = {
     "{stop}": ["{ok,stop}"],
 }
 STREAM_PERIOD_S = 0.02
+JPEG = b"\xff\xd8 frame \xff\xd9"
+HTTP_OK = 200
 
 
 class FakeLink:
@@ -68,6 +72,34 @@ class FakeLink:
             if stream_id != self._stream_id:
                 return
             self.push(frame)
+
+
+class FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self.status = HTTP_OK
+        self._body = body
+
+    def __enter__(self) -> typing.Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def fake_camera(monkeypatch: pytest.MonkeyPatch, replies: list[bytes | BaseException]) -> None:
+    """Answers each urlopen() call with the next reply: bytes are the body, an exception is raised."""
+    queued = iter(replies)
+
+    def urlopen(_url: str, *, timeout: float) -> FakeResponse:
+        reply = next(queued)
+        if isinstance(reply, BaseException):
+            raise reply
+        return FakeResponse(reply)
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
 
 
 @pytest.fixture
