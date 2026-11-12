@@ -29,3 +29,7 @@ class CalibrationError(ElegooError):
 
 class CameraError(ElegooError):
     pass
+
+
+class ToolCallError(ElegooError):
+    pass
