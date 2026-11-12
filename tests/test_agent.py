@@ -11,7 +11,7 @@ from elegoo import agent
 from elegoo.agent import check_ready, execute, run_episode
 from elegoo.car import HB_MS_SERIAL, Car
 from elegoo.episode import EpisodeHeader, EpisodeRecorder, EpisodeResult
-from elegoo.errors import NotReadyError
+from elegoo.errors import NotReadyError, ReplyTimeoutError
 from elegoo.model import Model
 from elegoo.profile import Profile
 from elegoo.protocol import MotionKind, StopReason
@@ -165,15 +165,61 @@ def test_camera_error_ends_episode(tele_car: Car, recorder: EpisodeRecorder, mon
     assert read_result(recorder) == "error"
 
 
+def test_ctrl_c_during_move_records_the_step(
+    agent_link: FakeLink, tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_camera(monkeypatch, [JPEG])
+
+    def interrupt(_: float) -> StopReason:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(tele_car, "wait_done", interrupt)
+    assert run(tele_car, scripted_model([move(30)], []), recorder) is EpisodeResult.OPERATOR
+    [step] = read_steps(recorder)
+    assert (step["tool"], step["error"]) == ("move", "KeyboardInterrupt")
+    assert "{stop}" in agent_link.sent
+
+
+def test_ctrl_c_with_failed_stop_closes_episode(
+    agent_link: FakeLink, tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_camera(monkeypatch, [KeyboardInterrupt()])
+    stop_replies = agent_link.script.pop("{stop}")
+    with pytest.raises(ReplyTimeoutError):
+        run(tele_car, scripted_model([], []), recorder)
+    agent_link.script["{stop}"] = stop_replies
+    assert read_result(recorder) == "operator"
+
+
+def test_api_error_records_the_step(tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_camera(monkeypatch, [JPEG])
+    bad_request = httpx2.Response(
+        400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "bad"}}
+    )
+    assert run(tele_car, scripted_model([bad_request], []), recorder) is EpisodeResult.ERROR
+    [step] = read_steps(recorder)
+    assert "BadRequestError" in step["error"]
+
+
+def test_unexpected_error_closes_episode(
+    tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_camera(monkeypatch, [JPEG])
+    with pytest.raises(AttributeError):
+        run(tele_car, scripted_model([httpx2.Response(200, text="captive portal")], []), recorder)
+    assert read_result(recorder) == "error"
+
+
 @pytest.mark.parametrize(
     ("imu", "profile"),
     [
         pytest.param("0", PROFILE, id="imu failure"),
         pytest.param("1", Profile(), id="no speed calibration"),
+        pytest.param("1", Profile(batt_mv=BATT_MV, speed=((125, 44.6),)), id="move_pwm outside the speed table"),
     ],
 )
 def test_check_ready_rejects(link: FakeLink, imu: str, profile: Profile) -> None:
-    link.script["{get}"] = [f"{{p,imu,{imu}}}", "{ok,get}"]
+    link.script["{get}"] = ["{p,move_pwm,100}", f"{{p,imu,{imu}}}", "{ok,get}"]
     with Car(link, HB_MS_SERIAL) as car, pytest.raises(NotReadyError):
         check_ready(car, profile)
 

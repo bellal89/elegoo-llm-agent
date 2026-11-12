@@ -11,12 +11,12 @@ from elegoo.calibrate import PROFILE_PATH, TELE_PERIOD_MS, TELE_TIMEOUT_S
 from elegoo.camera import capture
 from elegoo.car import HB_MS_TCP, MS_PER_S, TURN_DONE_TIMEOUT_S, Car
 from elegoo.episode import EpisodeHeader, EpisodeRecorder, EpisodeResult, StepOutcome, StepRecord, Verdict
-from elegoo.errors import ElegooError, ModelTimeoutError, NotReadyError, ToolCallError
+from elegoo.errors import ElegooError, ModelTimeoutError, NotReadyError, ProfileError, ToolCallError
 from elegoo.link import TcpLink
 from elegoo.model import Model, Request
 from elegoo.profile import Profile, load_profile
 from elegoo.protocol import Param, StopReason, Tele
-from elegoo.tools import Action, Finish, Move, Turn, parse_action
+from elegoo.tools import MOVE_CM_MIN, Action, Finish, Move, Turn, parse_action
 
 MAX_DECISIONS = 20
 EPISODE_TIMEOUT_S = 180.0
@@ -32,6 +32,10 @@ def check_ready(car: Car, profile: Profile) -> None:
         raise NotReadyError("the IMU does not work. Restart the car.")
     if profile.speed is None or profile.batt_mv is None:
         raise NotReadyError(f"{PROFILE_PATH} has no speed calibration. Run make calibrate-wifi STEP=speed.")
+    try:
+        profile.ms_for_cm(MOVE_CM_MIN, pwm=int(car.params()[Param.MOVE_PWM]), batt_mv=profile.batt_mv)
+    except ProfileError as error:
+        raise NotReadyError(f"{error}. Run make calibrate-wifi STEP=speed.") from error
 
 
 def execute(car: Car, action: Turn | Move, *, profile: Profile, batt_mv: int) -> StopReason:
@@ -48,17 +52,18 @@ def execute(car: Car, action: Turn | Move, *, profile: Profile, batt_mv: int) ->
 def run_episode(
     car: Car, *, model: Model, recorder: EpisodeRecorder, profile: Profile, instruction: str
 ) -> EpisodeResult:
-    """Closes the episode record. Ctrl-C stops the car and ends the episode."""
+    """Closes the episode record also when an exception leaves it. Ctrl-C stops the car and ends the episode."""
+    result = EpisodeResult.ERROR
     try:
         result = _run_steps(car, model=model, recorder=recorder, profile=profile, instruction=instruction)
     except KeyboardInterrupt:
-        car.stop()
         result = EpisodeResult.OPERATOR
+        car.stop()
     except ElegooError, anthropic.APIError:
         logger.exception("Episode failed")
-        result = EpisodeResult.ERROR
-    recorder.close(result)
-    logger.info("Episode result %s", result)
+    finally:
+        recorder.close(result)
+        logger.info("Episode result %s", result)
     return result
 
 
@@ -73,20 +78,30 @@ def _run_steps(
         frame = capture()
         tele = car.next_tele(TELE_TIMEOUT_S)
         request = Request(instruction=instruction, frame=frame, tele=tele, history=tuple(history))
-        step, action = _decide(model, request, step=_empty_step(index, recorder=recorder, tele=tele))
-        if action is not None and time.monotonic() - start_s >= EPISODE_TIMEOUT_S:
-            recorder.add_step(dataclasses.replace(step, error=EPISODE_TIMEOUT_ERROR), frame=frame)
-            return EpisodeResult.TIMEOUT
-        match action:
-            case None:
-                pass
-            case Finish():
-                recorder.add_step(dataclasses.replace(step, outcome=StepOutcome.FINISH), frame=frame)
-                return EpisodeResult.FINISH
-            case Turn() | Move():
-                reason = execute(car, action, profile=profile, batt_mv=tele.batt_mv)
-                step = dataclasses.replace(step, stop_reason=reason, tele_after=car.next_tele(TELE_TIMEOUT_S))
+        step = _empty_step(index, recorder=recorder, tele=tele)
+        result: EpisodeResult | None = None
+        # A failed or interrupted step is training data too: record it before the exception leaves.
+        try:
+            step, action = _decide(model, request, step=step)
+            if action is not None and time.monotonic() - start_s >= EPISODE_TIMEOUT_S:
+                step = dataclasses.replace(step, error=EPISODE_TIMEOUT_ERROR)
+                result = EpisodeResult.TIMEOUT
+            else:
+                match action:
+                    case None:
+                        pass
+                    case Finish():
+                        step = dataclasses.replace(step, outcome=StepOutcome.FINISH)
+                        result = EpisodeResult.FINISH
+                    case Turn() | Move():
+                        reason = execute(car, action, profile=profile, batt_mv=tele.batt_mv)
+                        step = dataclasses.replace(step, stop_reason=reason, tele_after=car.next_tele(TELE_TIMEOUT_S))
+        except BaseException as error:
+            recorder.add_step(dataclasses.replace(step, error=_error_text(error)), frame=frame)
+            raise
         recorder.add_step(step, frame=frame)
+        if result is not None:
+            return result
         history.append(_history_line(step))
         logger.info("Step %s", history[-1])
     return EpisodeResult.BUDGET
@@ -133,6 +148,10 @@ def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRe
         return step, parse_action(decision.call.name, decision.call.input)
     except ToolCallError as error:
         return dataclasses.replace(step, outcome=StepOutcome.BAD_TOOL, error=str(error)), None
+
+
+def _error_text(error: BaseException) -> str:
+    return f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
 
 
 def _history_line(step: StepRecord) -> str:
