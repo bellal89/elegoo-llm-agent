@@ -1,14 +1,19 @@
+import json
 import queue
 import threading
 import time
 import typing
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
+import anthropic
+import httpx2
 import pytest
 
 from elegoo.car import HB_MS_SERIAL, Car
 from elegoo.errors import LinkError
+from elegoo.model import Model
 
 DEFAULT_SCRIPT = {
     "{set,hb_ms,300}": ["{ok,set}"],
@@ -18,6 +23,10 @@ DEFAULT_SCRIPT = {
 STREAM_PERIOD_S = 0.02
 JPEG = b"\xff\xd8 frame \xff\xd9"
 HTTP_OK = 200
+MODEL_ID = "claude-haiku-5-5"
+SONAR_STOP_CM = 17
+INPUT_TOKENS = 1400
+OUTPUT_TOKENS = 200
 
 
 class FakeLink:
@@ -100,6 +109,51 @@ def fake_camera(monkeypatch: pytest.MonkeyPatch, replies: list[bytes | BaseExcep
         return FakeResponse(reply)
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+
+def tool_use(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "tool_use", "id": f"toolu_{name}", "name": name, "input": tool_input}
+
+
+def text(value: str) -> dict[str, Any]:
+    return {"type": "text", "text": value}
+
+
+def reply(content: list[dict[str, Any]], stop_reason: str = "tool_use") -> httpx2.Response:
+    return httpx2.Response(
+        HTTP_OK,
+        json={
+            "id": "msg_test",
+            "type": "message",
+            "role": "assistant",
+            "model": MODEL_ID,
+            "content": content,
+            "stop_reason": stop_reason,
+            "stop_sequence": None,
+            "usage": {"input_tokens": INPUT_TOKENS, "output_tokens": OUTPUT_TOKENS},
+        },
+    )
+
+
+def model_with(handler: Callable[[httpx2.Request], httpx2.Response]) -> Model:
+    client = anthropic.Anthropic(
+        api_key="test", http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(handler))
+    )
+    return Model(client, model_id=MODEL_ID, sonar_stop_cm=SONAR_STOP_CM)
+
+
+def scripted_model(replies: list[httpx2.Response | Exception], sent: list[dict[str, Any]]) -> Model:
+    """Answers each API call with the next reply and appends the request body to `sent`."""
+    queued = iter(replies)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        sent.append(json.loads(request.content))
+        reply = next(queued)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    return model_with(handler)
 
 
 @pytest.fixture

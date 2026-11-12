@@ -33,3 +33,7 @@ class CameraError(ElegooError):
 
 class ToolCallError(ElegooError):
     pass
+
+
+class ModelTimeoutError(ElegooError):
+    pass
