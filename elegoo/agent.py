@@ -20,7 +20,6 @@ from elegoo.tools import MOVE_CM_MIN, Action, Finish, Move, Turn, parse_action
 
 MAX_DECISIONS = 20
 EPISODE_TIMEOUT_S = 180.0
-DEFAULT_MODEL = "claude-haiku-5-5"
 EPISODE_TIMEOUT_ERROR = "episode timeout"
 NO_TOOL_CALL = "no tool call"
 
@@ -72,8 +71,10 @@ def _run_steps(
         step = StepRecord(index=index, frame=recorder.frame_name(index), tele_before=tele, outcome=StepOutcome.ACTION)
         # A failed or interrupted step is training data too: record it before the exception leaves.
         try:
-            step, action = _decide(model, request, step=step)
-            step, result = _act(car, step, action, profile=profile, move_pwm=move_pwm, deadline_s=deadline_s)
+            step, action = _decide(model, request=request, step=step)
+            step, result = _act(
+                car, step=step, action=action, profile=profile, move_pwm=move_pwm, deadline_s=deadline_s
+            )
         except BaseException as error:
             recorder.add_step(dataclasses.replace(step, error=_error_text(error)), frame=frame)
             raise
@@ -85,7 +86,7 @@ def _run_steps(
     return EpisodeResult.BUDGET
 
 
-def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRecord, Action | None]:
+def _decide(model: Model, *, request: Request, step: StepRecord) -> tuple[StepRecord, Action | None]:
     """The action is None if the decision has no valid tool call."""
     try:
         decision = model.decide(request, frame_name=step.frame)
@@ -102,7 +103,7 @@ def _decide(model: Model, request: Request, *, step: StepRecord) -> tuple[StepRe
 
 
 def _act(
-    car: Car, step: StepRecord, action: Action | None, *, profile: Profile, move_pwm: int, deadline_s: float
+    car: Car, *, step: StepRecord, action: Action | None, profile: Profile, move_pwm: int, deadline_s: float
 ) -> tuple[StepRecord, EpisodeResult | None]:
     """The episode result is None if the episode continues."""
     if action is not None and time.monotonic() >= deadline_s:
@@ -136,7 +137,7 @@ def _history_line(step: StepRecord) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Drive the car to a target with an API model over the ESP32 Wi-Fi.")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Anthropic model ID")
+    parser.add_argument("--model", required=True, help="Anthropic model ID, for example claude-haiku-5-5")
     parser.add_argument("instruction", help='for example "drive to the red box"')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)

@@ -19,6 +19,8 @@ MAX_TOKENS = 4000
 EFFORT = "medium"
 SUCCESS_SONAR_CM = 30
 FRAME_MEDIA_TYPE = "image/jpeg"
+TOOL_USE_BLOCK = "tool_use"
+REFUSAL_STOP_REASON = "refusal"
 SYSTEM_PROMPT = """\
 You drive a small robot car, approx. 25 cm long, on the floor. The camera faces forward.
 Each request gives one camera frame, the sonar distance, and the earlier actions with their stop reasons.
@@ -84,10 +86,10 @@ class Model:
         except anthropic.APITimeoutError as error:
             raise ModelTimeoutError(f"no model response in {DECISION_TIMEOUT_S} s") from error
         latency_ms = round((time.monotonic() - start_s) * MS_PER_S)
-        calls = [block for block in message.content if block.type == "tool_use"]
+        calls = [block for block in message.content if block.type == TOOL_USE_BLOCK]
         decision = Decision(
             call=ToolCall(name=calls[0].name, input=calls[0].input)
-            if len(calls) == 1 and message.stop_reason != "refusal"
+            if len(calls) == 1 and message.stop_reason != REFUSAL_STOP_REASON
             else None,
             stop_reason=message.stop_reason,
             request=self._params(request, image={"type": "image", "frame": frame_name}),

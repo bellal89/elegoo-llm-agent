@@ -68,7 +68,7 @@ def tele_car(agent_link: FakeLink, car: Car) -> Car:
     return car
 
 
-def run(car: Car, model: Model, recorder: EpisodeRecorder) -> EpisodeResult:
+def run(car: Car, *, model: Model, recorder: EpisodeRecorder) -> EpisodeResult:
     return run_episode(car, model=model, recorder=recorder, profile=PROFILE, move_pwm=MOVE_PWM, instruction=INSTRUCTION)
 
 
@@ -99,7 +99,7 @@ def test_episode_reaches_finish(
 ) -> None:
     fake_camera(monkeypatch, [JPEG] * 3)
     model = scripted_model([turn(20), move(30), FINISH], [])
-    assert run(tele_car, model, recorder) is EpisodeResult.FINISH
+    assert run(tele_car, model=model, recorder=recorder) is EpisodeResult.FINISH
     steps = read_steps(recorder)
     assert [step["outcome"] for step in steps] == ["action", "action", "finish"]
     assert [step["stop_reason"] for step in steps] == ["done", "sonar", None]
@@ -112,7 +112,7 @@ def test_episode_reaches_finish(
 def test_history_carries_stop_reason(tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch) -> None:
     fake_camera(monkeypatch, [JPEG] * 2)
     sent: list[dict[str, Any]] = []
-    run(tele_car, scripted_model([move(30), FINISH], sent), recorder)
+    run(tele_car, model=scripted_model([move(30), FINISH], sent), recorder=recorder)
     assert "1. move cm=30: sonar" in json.dumps(sent[1])
 
 
@@ -122,7 +122,7 @@ def test_bad_decisions_count_toward_budget(
     fake_camera(monkeypatch, [JPEG] * agent.MAX_DECISIONS)
     sent: list[dict[str, Any]] = []
     model = scripted_model([move(80), reply([text("A box.")], "end_turn")] * (agent.MAX_DECISIONS // 2), sent)
-    assert run(tele_car, model, recorder) is EpisodeResult.BUDGET
+    assert run(tele_car, model=model, recorder=recorder) is EpisodeResult.BUDGET
     steps = read_steps(recorder)
     assert len(steps) == agent.MAX_DECISIONS
     assert {step["outcome"] for step in steps} == {"bad_tool", "no_tool"}
@@ -133,7 +133,7 @@ def test_bad_decisions_count_toward_budget(
 def test_model_timeout_is_a_step(tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch) -> None:
     fake_camera(monkeypatch, [JPEG] * 2)
     model = scripted_model([httpx2.ReadTimeout("slow"), FINISH], [])
-    assert run(tele_car, model, recorder) is EpisodeResult.FINISH
+    assert run(tele_car, model=model, recorder=recorder) is EpisodeResult.FINISH
     assert [step["outcome"] for step in read_steps(recorder)] == ["model_timeout", "finish"]
 
 
@@ -142,7 +142,9 @@ def test_timeout_ends_episode_before_next_frame(
 ) -> None:
     fake_camera(monkeypatch, [JPEG])
     monkeypatch.setattr(agent, "EPISODE_TIMEOUT_S", SHORT_TIMEOUT_S)
-    assert run(tele_car, slow_model(reply([text("A box.")], "end_turn")), recorder) is EpisodeResult.TIMEOUT
+    assert (
+        run(tele_car, model=slow_model(reply([text("A box.")], "end_turn")), recorder=recorder) is EpisodeResult.TIMEOUT
+    )
     assert [step["outcome"] for step in read_steps(recorder)] == ["no_tool"]
 
 
@@ -151,7 +153,7 @@ def test_timeout_after_decision_skips_action(
 ) -> None:
     fake_camera(monkeypatch, [JPEG])
     monkeypatch.setattr(agent, "EPISODE_TIMEOUT_S", SHORT_TIMEOUT_S)
-    assert run(tele_car, slow_model(turn(20)), recorder) is EpisodeResult.TIMEOUT
+    assert run(tele_car, model=slow_model(turn(20)), recorder=recorder) is EpisodeResult.TIMEOUT
     [step] = read_steps(recorder)
     assert step["error"] == "episode timeout"
     assert motion_frames(agent_link) == []
@@ -159,7 +161,7 @@ def test_timeout_after_decision_skips_action(
 
 def test_camera_error_ends_episode(tele_car: Car, recorder: EpisodeRecorder, monkeypatch: pytest.MonkeyPatch) -> None:
     fake_camera(monkeypatch, [urllib.error.URLError("No route to host")])
-    assert run(tele_car, scripted_model([], []), recorder) is EpisodeResult.ERROR
+    assert run(tele_car, model=scripted_model([], []), recorder=recorder) is EpisodeResult.ERROR
     assert read_result(recorder) == "error"
 
 
@@ -172,7 +174,7 @@ def test_ctrl_c_during_move_records_the_step(
         raise KeyboardInterrupt
 
     monkeypatch.setattr(tele_car, "wait_done", interrupt)
-    assert run(tele_car, scripted_model([move(30)], []), recorder) is EpisodeResult.OPERATOR
+    assert run(tele_car, model=scripted_model([move(30)], []), recorder=recorder) is EpisodeResult.OPERATOR
     [step] = read_steps(recorder)
     assert (step["decision"]["call"]["name"], step["error"]) == ("move", "KeyboardInterrupt")
     assert "{stop}" in agent_link.sent
@@ -185,7 +187,7 @@ def test_ctrl_c_with_failed_stop_closes_episode(
     fake_camera(monkeypatch, [KeyboardInterrupt()])
     stop_replies = agent_link.script.pop("{stop}")
     with pytest.raises(ReplyTimeoutError):
-        run(tele_car, scripted_model([], []), recorder)
+        run(tele_car, model=scripted_model([], []), recorder=recorder)
     agent_link.script["{stop}"] = stop_replies
     assert read_result(recorder) == "operator"
 
@@ -195,7 +197,7 @@ def test_api_error_records_the_step(tele_car: Car, recorder: EpisodeRecorder, mo
     bad_request = httpx2.Response(
         400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "bad"}}
     )
-    assert run(tele_car, scripted_model([bad_request], []), recorder) is EpisodeResult.ERROR
+    assert run(tele_car, model=scripted_model([bad_request], []), recorder=recorder) is EpisodeResult.ERROR
     [step] = read_steps(recorder)
     assert "BadRequestError" in step["error"]
 
@@ -205,7 +207,7 @@ def test_unexpected_error_closes_episode(
 ) -> None:
     fake_camera(monkeypatch, [JPEG])
     with pytest.raises(AttributeError):
-        run(tele_car, scripted_model([httpx2.Response(200, text="captive portal")], []), recorder)
+        run(tele_car, model=scripted_model([httpx2.Response(200, text="captive portal")], []), recorder=recorder)
     assert read_result(recorder) == "error"
 
 

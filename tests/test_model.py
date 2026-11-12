@@ -1,10 +1,8 @@
 import json
 from typing import Any
 
-import httpx2
 import pytest
 
-from elegoo.errors import ModelTimeoutError
 from elegoo.model import Request
 from elegoo.protocol import MotionKind, StopReason, Tele
 from tests.conftest import INPUT_TOKENS, JPEG, OUTPUT_TOKENS, reply, scripted_model, text, tool_use
@@ -58,12 +56,6 @@ def test_decide_without_tool_call(content: list[dict[str, Any]], stop_reason: st
     decision = scripted_model([reply(content, stop_reason)], []).decide(request(), frame_name=FRAME_NAME)
     assert decision.call is None
     assert decision.stop_reason == stop_reason
-
-
-def test_decide_timeout() -> None:
-    model = scripted_model([httpx2.ReadTimeout("slow")], [])
-    with pytest.raises(ModelTimeoutError):
-        model.decide(request(), frame_name=FRAME_NAME)
 
 
 @pytest.mark.parametrize(

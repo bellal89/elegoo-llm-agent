@@ -86,20 +86,20 @@ def parse_action(call: ToolCall) -> Action:
         raise ToolCallError(f"unknown tool {call.name}") from None
     match tool:
         case ToolName.TURN:
-            deg = _arg(call, "deg", int)
+            deg = _arg(call, key="deg", kind=int)
             if abs(deg) > TURN_DEG_MAX:
                 raise ToolCallError(f"deg must be {-TURN_DEG_MAX}..{TURN_DEG_MAX}, got {deg}")
             return Turn(deg=deg)
         case ToolName.MOVE:
-            cm = _arg(call, "cm", int)
+            cm = _arg(call, key="cm", kind=int)
             if not MOVE_CM_MIN <= cm <= MOVE_CM_MAX:
                 raise ToolCallError(f"cm must be {MOVE_CM_MIN}..{MOVE_CM_MAX}, got {cm}")
             return Move(cm=cm)
         case ToolName.FINISH:
-            return Finish(reached=_arg(call, "reached", bool), reason=_arg(call, "reason", str))
+            return Finish(reached=_arg(call, key="reached", kind=bool), reason=_arg(call, key="reason", kind=str))
 
 
-def _arg[T](call: ToolCall, key: str, kind: type[T]) -> T:
+def _arg[T](call: ToolCall, *, key: str, kind: type[T]) -> T:
     value = call.input.get(key)
     # Exact type: bool is a subclass of int.
     if type(value) is not kind:
