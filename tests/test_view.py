@@ -103,7 +103,7 @@ def test_view_shows_the_episode_steps(recorder: EpisodeRecorder, url: str) -> No
 
 def test_view_shows_a_step_without_decision(recorder: EpisodeRecorder, url: str) -> None:
     timeout_step = dataclasses.replace(
-        STEP, outcome=StepOutcome.MODEL_TIMEOUT, decision=None, error="no model response in 20.0 s"
+        STEP, outcome=StepOutcome.MODEL_TIMEOUT, decision=None, error="no model response in 20.0 s", stop_reason=None
     )
     recorder.add_step(timeout_step, frame=JPEG)
 
@@ -114,6 +114,7 @@ def test_view_shows_a_step_without_decision(recorder: EpisodeRecorder, url: str)
     assert "no verdict" in index
     assert "outcome model_timeout" in page
     assert "no model response in 20.0 s" in page
+    assert "stop None" not in page
 
 
 def test_view_shows_an_episode_without_steps(recorder: EpisodeRecorder, url: str) -> None:

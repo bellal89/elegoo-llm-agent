@@ -46,10 +46,9 @@ logger = logging.getLogger(__name__)
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
-        episode_dir = self._episode_dir()
         if urllib.parse.urlsplit(self.path).path == "/":
             self._send_html(_index_page(Path(self.directory)))
-        elif episode_dir is not None:
+        elif (episode_dir := self._episode_dir()) is not None:
             self._send_html(_episode_page(episode_dir))
         else:
             super().do_GET()
@@ -195,7 +194,10 @@ def _step_row(step: dict[str, Any], notes: dict[str, str]) -> str:
         lines.append(f"<pre>{html.escape(' '.join(texts))}</pre>")
         lines.append(f"<b>{html.escape(json.dumps(decision['call']))}</b>")
         lines.append(f"{decision['latency_ms']} ms · {decision['input_tokens']}/{decision['output_tokens']} tokens")
-    lines.append(f"outcome {step['outcome']} · stop {step['stop_reason']}")
+    status = f"outcome {step['outcome']}"
+    if step["stop_reason"] is not None:
+        status += f" · stop {step['stop_reason']}"
+    lines.append(status)
     if step["error"] is not None:
         lines.append(f'<span class="failure">{html.escape(step["error"])}</span>')
     frame = html.escape(step["frame"])
