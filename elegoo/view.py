@@ -75,7 +75,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         """Returns {key: text} from a body {"key": "episode" or a step index, "text": str}, or None if it is invalid."""
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        except json.JSONDecodeError:
+        except ValueError:
             return None
         if not isinstance(body, dict):
             return None

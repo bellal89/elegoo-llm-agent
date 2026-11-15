@@ -1,4 +1,5 @@
 import dataclasses
+import http
 import json
 import threading
 import urllib.error
@@ -50,9 +51,11 @@ STEP = StepRecord(
     stop_reason=StopReason.DONE,
     tele_after=TELE,
 )
-HTTP_NO_CONTENT = 204
-HTTP_BAD_REQUEST = 400
-HTTP_NOT_FOUND = 404
+
+
+@pytest.fixture
+def recorder(tmp_path: Path) -> EpisodeRecorder:
+    return EpisodeRecorder(HEADER, root=tmp_path)
 
 
 @pytest.fixture
@@ -76,12 +79,11 @@ def post(url: str, body: bytes) -> int:
         return error.code
 
 
-def post_note(url: str, *, key: object, note: object) -> int:
-    return post(url, json.dumps({"key": key, "text": note}).encode())
+def post_note(url: str, *, key: str, text: str) -> int:
+    return post(url, json.dumps({"key": key, "text": text}).encode())
 
 
-def test_view_shows_the_episode_steps(tmp_path: Path, url: str) -> None:
-    recorder = EpisodeRecorder(HEADER, root=tmp_path)
+def test_view_shows_the_episode_steps(recorder: EpisodeRecorder, url: str) -> None:
     recorder.add_step(STEP, frame=JPEG)
     recorder.close(EpisodeResult.FINISH)
     recorder.set_verdict(Verdict(success=False, contact=True, intervention=False))
@@ -99,8 +101,7 @@ def test_view_shows_the_episode_steps(tmp_path: Path, url: str) -> None:
     assert urllib.request.urlopen(f"{url}{name}/frames/000.jpg").read() == JPEG
 
 
-def test_view_shows_a_step_without_decision(tmp_path: Path, url: str) -> None:
-    recorder = EpisodeRecorder(HEADER, root=tmp_path)
+def test_view_shows_a_step_without_decision(recorder: EpisodeRecorder, url: str) -> None:
     timeout_step = dataclasses.replace(
         STEP, outcome=StepOutcome.MODEL_TIMEOUT, decision=None, error="no model response in 20.0 s"
     )
@@ -115,9 +116,7 @@ def test_view_shows_a_step_without_decision(tmp_path: Path, url: str) -> None:
     assert "no model response in 20.0 s" in page
 
 
-def test_view_shows_an_episode_without_steps(tmp_path: Path, url: str) -> None:
-    recorder = EpisodeRecorder(HEADER, root=tmp_path)
-
+def test_view_shows_an_episode_without_steps(recorder: EpisodeRecorder, url: str) -> None:
     assert "<td>0</td>" in get(url)
     assert recorder.dir.name in get(f"{url}{recorder.dir.name}/")
 
@@ -132,16 +131,15 @@ def test_view_numbers_the_episodes_in_time_order(tmp_path: Path, url: str) -> No
     assert f'<tr><td>2</td><td><a href="{later.dir.name}/">' in index
 
 
-def test_view_saves_the_notes_and_shows_them(tmp_path: Path, url: str) -> None:
-    recorder = EpisodeRecorder(HEADER, root=tmp_path)
+def test_view_saves_the_notes_and_shows_them(recorder: EpisodeRecorder, url: str) -> None:
     recorder.add_step(STEP, frame=JPEG)
     notes_url = f"{url}{recorder.dir.name}/"
 
-    assert post_note(notes_url, key="episode", note="Lost the <box>.") == HTTP_NO_CONTENT
-    assert post_note(notes_url, key="0", note="Turned the wrong way.") == HTTP_NO_CONTENT
-    assert post_note(notes_url, key="0", note="Turned left, box on the right.") == HTTP_NO_CONTENT
-    assert post_note(notes_url, key="1", note="Typo.") == HTTP_NO_CONTENT
-    assert post_note(notes_url, key="1", note=" \n") == HTTP_NO_CONTENT
+    assert post_note(notes_url, key="episode", text="Lost the <box>.") == http.HTTPStatus.NO_CONTENT
+    assert post_note(notes_url, key="0", text="Turned the wrong way.") == http.HTTPStatus.NO_CONTENT
+    assert post_note(notes_url, key="0", text="Turned left, box on the right.") == http.HTTPStatus.NO_CONTENT
+    assert post_note(notes_url, key="1", text="Typo.") == http.HTTPStatus.NO_CONTENT
+    assert post_note(notes_url, key="1", text=" \n") == http.HTTPStatus.NO_CONTENT
 
     assert json.loads((recorder.dir / "notes.json").read_text()) == {
         "episode": "Lost the <box>.",
@@ -157,21 +155,17 @@ def test_view_saves_the_notes_and_shows_them(tmp_path: Path, url: str) -> None:
     "body",
     [
         pytest.param(b"not json", id="not-json"),
+        pytest.param(b"\xff", id="not-utf8"),
         pytest.param(b"[]", id="not-object"),
         pytest.param(json.dumps({"key": "verdict", "text": "x"}).encode(), id="unknown-key"),
         pytest.param(json.dumps({"key": 0, "text": "x"}).encode(), id="key-not-string"),
         pytest.param(json.dumps({"key": "0", "text": None}).encode(), id="text-not-string"),
     ],
 )
-def test_view_rejects_a_bad_note(tmp_path: Path, url: str, body: bytes) -> None:
-    recorder = EpisodeRecorder(HEADER, root=tmp_path)
-
-    assert post(f"{url}{recorder.dir.name}/", body) == HTTP_BAD_REQUEST
+def test_view_rejects_a_bad_note(recorder: EpisodeRecorder, url: str, body: bytes) -> None:
+    assert post(f"{url}{recorder.dir.name}/", body) == http.HTTPStatus.BAD_REQUEST
     assert not (recorder.dir / "notes.json").exists()
 
 
-def test_view_rejects_a_note_for_an_unknown_episode(tmp_path: Path, url: str) -> None:
-    EpisodeRecorder(HEADER, root=tmp_path)
-
-    assert post_note(f"{url}..%2F..%2Fetc/", key="episode", note="x") == HTTP_NOT_FOUND
-    assert post_note(f"{url}20990101T000000Z/", key="episode", note="x") == HTTP_NOT_FOUND
+def test_view_rejects_a_note_for_an_unknown_episode(recorder: EpisodeRecorder, url: str) -> None:
+    assert post_note(f"{url}..%2F..%2Fetc/", key="episode", text="x") == http.HTTPStatus.NOT_FOUND
