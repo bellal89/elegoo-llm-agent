@@ -29,8 +29,9 @@ turn: turn in place, positive deg turns right. move: drive straight forward. The
 The car stops by itself {sonar_stop_cm} cm before an obstacle ahead. Stop reason "sonar" means this stop.
 Stop reason "cliff" means that the floor sensors under the front see a drop or a dark floor. Do not move again in the same direction.
 The sonar beam is approx. 30 deg wide: the sonar gives the distance to the nearest object ahead, not its direction.
-Call finish with reached=true only when both are true: the target center is in the middle third of the frame width,\
- and the sonar distance is at most {success_sonar_cm} cm.
+The sonar can read another object, for example a low object between the car and the target.
+Call finish with reached=true only when all are true: the target center is in the middle third of the frame width,\
+ the target touches the lower edge of the frame, and the sonar distance is at most {success_sonar_cm} cm.
 Call finish with reached=false when you decide that the task cannot be done."""
 USER_TEXT = """\
 Task: {instruction}
