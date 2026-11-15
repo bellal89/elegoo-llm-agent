@@ -29,6 +29,7 @@ A research project: an LLM agent drives the Elegoo Smart Robot Car V4.0 from a n
 | `make accept-usb` | Run an acceptance test over USB. The car drives on the floor. `TEST` selects the test: `turn`, `move`, `wall` or `cliff` |
 | `make accept-wifi` | The same through the ESP32 Wi-Fi |
 | `make agent` | Drive the car to a target with an API model through the ESP32 Wi-Fi. `TASK` sets the instruction, `MODEL` the model. Write the episode to `runs/` |
+| `make view` | Show the episodes from `runs/` in the browser. Write notes to the episode and to each step: the viewer saves them to `runs/<episode>/notes.json` |
 
 The default serial port is `/dev/cu.usbserial-1110`. To find the port of the car, run `arduino-cli board list`. To use another port, give the full path, for example: `make upload PORT=/dev/cu.usbserial-1420`.
 

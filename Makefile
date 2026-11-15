@@ -4,7 +4,7 @@ TEST := turn
 TASK := drive to the red box
 MODEL := claude-haiku-5-5
 
-.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi accept-usb accept-wifi agent
+.PHONY: init install lint test upload hardware-test calibrate-usb calibrate-wifi accept-usb accept-wifi agent view
 
 init:
 	uv python install
@@ -48,3 +48,6 @@ accept-wifi:
 # The computer must be on the car Wi-Fi and have internet through the phone: see README, Usage.
 agent:
 	uv run python -m elegoo.agent --model $(MODEL) "$(TASK)"
+
+view:
+	uv run python -m elegoo.view
