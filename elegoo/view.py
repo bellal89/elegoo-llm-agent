@@ -67,7 +67,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self.send_response(http.HTTPStatus.NO_CONTENT)
         self.end_headers()
 
-    def log_message(self, format: str, *args: Any) -> None:
+    def log_message(self, format: str, *args: object) -> None:
         logger.debug(format, *args)
 
     def _read_note(self) -> dict[str, str] | None:
