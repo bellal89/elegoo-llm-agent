@@ -30,6 +30,9 @@ The car stops by itself {sonar_stop_cm} cm before an obstacle ahead. Stop reason
 Stop reason "cliff" means that the floor sensors under the front see a drop or a dark floor. Do not move again in the same direction.
 The sonar beam is approx. 30 deg wide: the sonar gives the distance to the nearest object ahead, not its direction.
 The sonar can read another object, for example a low object between the car and the target.
+If the sonar distance is much shorter than the target distance in the frame, an obstacle is ahead.\
+ Do not drive into it: go around it with turns, or call finish with reached=false.\
+ A low obstacle goes out of the sonar beam and out of the frame when the car is near it: do not drive forward then.
 Call finish with reached=true only when all are true: the target center is in the middle third of the frame width,\
  the target touches the lower edge of the frame, and the sonar distance is at most {success_sonar_cm} cm.
 Call finish with reached=false when you decide that the task cannot be done."""
