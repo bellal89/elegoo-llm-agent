@@ -135,7 +135,7 @@ def test_view_numbers_the_episodes_in_time_order(tmp_path: Path, url: str) -> No
 def test_view_saves_the_notes_and_shows_them(tmp_path: Path, url: str) -> None:
     recorder = EpisodeRecorder(HEADER, root=tmp_path)
     recorder.add_step(STEP, frame=JPEG)
-    notes_url = f"{url}{recorder.dir.name}/notes"
+    notes_url = f"{url}{recorder.dir.name}/"
 
     assert post_note(notes_url, key="episode", note="Lost the <box>.") == HTTP_NO_CONTENT
     assert post_note(notes_url, key="0", note="Turned the wrong way.") == HTTP_NO_CONTENT
@@ -166,12 +166,12 @@ def test_view_saves_the_notes_and_shows_them(tmp_path: Path, url: str) -> None:
 def test_view_rejects_a_bad_note(tmp_path: Path, url: str, body: bytes) -> None:
     recorder = EpisodeRecorder(HEADER, root=tmp_path)
 
-    assert post(f"{url}{recorder.dir.name}/notes", body) == HTTP_BAD_REQUEST
+    assert post(f"{url}{recorder.dir.name}/", body) == HTTP_BAD_REQUEST
     assert not (recorder.dir / "notes.json").exists()
 
 
 def test_view_rejects_a_note_for_an_unknown_episode(tmp_path: Path, url: str) -> None:
     EpisodeRecorder(HEADER, root=tmp_path)
 
-    assert post_note(f"{url}..%2F..%2Fetc/notes", key="episode", note="x") == HTTP_NOT_FOUND
-    assert post_note(f"{url}20990101T000000Z/notes", key="episode", note="x") == HTTP_NOT_FOUND
+    assert post_note(f"{url}..%2F..%2Fetc/", key="episode", note="x") == HTTP_NOT_FOUND
+    assert post_note(f"{url}20990101T000000Z/", key="episode", note="x") == HTTP_NOT_FOUND

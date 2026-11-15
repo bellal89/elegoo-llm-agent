@@ -1,7 +1,5 @@
-import argparse
 import functools
 import html
-import http
 import http.server
 import json
 import logging
@@ -15,7 +13,6 @@ from elegoo.episode import EPISODE_FILE, RUNS_DIR, STEPS_FILE
 HOST = "127.0.0.1"
 PORT = 8000
 NOTES_FILE = "notes.json"
-NOTES_PATH = "notes"
 EPISODE_NOTE_KEY = "episode"
 TEXT_BLOCK = "text"
 HTML_TYPE = "text/html; charset=utf-8"
@@ -28,7 +25,7 @@ img { width: 320px; display: block; }
 pre { white-space: pre-wrap; margin: 0; }
 textarea { width: 100%; box-sizing: border-box; font: inherit; }
 textarea + small { display: block; height: 1.4em; }
-.ok { color: #2a2; } .fail { color: #d33; }"""
+.success { color: #2a2; } .failure { color: #d33; }"""
 # Saves a note 0.5 s after the last key press, to send one request per pause.
 SAVE_SCRIPT = """\
 for (const area of document.querySelectorAll("textarea")) {
@@ -38,7 +35,7 @@ for (const area of document.querySelectorAll("textarea")) {
     area.nextElementSibling.textContent = "";
     timer = setTimeout(async () => {
       const body = JSON.stringify({key: area.dataset.key, text: area.value});
-      const response = await fetch("notes", {method: "POST", body});
+      const response = await fetch(location.href, {method: "POST", body});
       area.nextElementSibling.textContent = response.ok ? "saved" : "not saved";
     }, 500);
   });
@@ -49,26 +46,23 @@ logger = logging.getLogger(__name__)
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
-        root = Path(self.directory)
-        parts = self._path_parts()
-        if not parts:
-            self._send_html(_index_page(root))
-        elif len(parts) == 1 and parts[0] in _episode_names(root):
-            self._send_html(_episode_page(root / parts[0]))
+        episode_dir = self._episode_dir()
+        if urllib.parse.urlsplit(self.path).path == "/":
+            self._send_html(_index_page(Path(self.directory)))
+        elif episode_dir is not None:
+            self._send_html(_episode_page(episode_dir))
         else:
             super().do_GET()
 
     def do_POST(self) -> None:
-        root = Path(self.directory)
-        parts = self._path_parts()
-        if len(parts) != 2 or parts[1] != NOTES_PATH or parts[0] not in _episode_names(root):
+        episode_dir = self._episode_dir()
+        if episode_dir is None:
             self.send_error(http.HTTPStatus.NOT_FOUND)
             return
         note = self._read_note()
         if note is None:
             self.send_error(http.HTTPStatus.BAD_REQUEST)
             return
-        episode_dir = root / parts[0]
         notes = {key: text for key, text in (_read_notes(episode_dir) | note).items() if text.strip()}
         (episode_dir / NOTES_FILE).write_text(json.dumps(notes, indent=2) + "\n")
         self.send_response(http.HTTPStatus.NO_CONTENT)
@@ -90,8 +84,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             return None
         return {key: text}
 
-    def _path_parts(self) -> list[str]:
-        return [part for part in urllib.parse.urlsplit(self.path).path.split("/") if part]
+    def _episode_dir(self) -> Path | None:
+        root = Path(self.directory)
+        parts = [part for part in urllib.parse.urlsplit(self.path).path.split("/") if part]
+        if len(parts) == 1 and parts[0] in _episode_names(root):
+            return root / parts[0]
+        return None
 
     def _send_html(self, page: str) -> None:
         body = page.encode()
@@ -102,9 +100,9 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def make_server(root: Path, *, port: int = PORT) -> http.server.ThreadingHTTPServer:
-    """Serves the episodes in `root` and saves the notes to notes.json in each episode directory. Port 0: free port."""
-    return http.server.ThreadingHTTPServer((HOST, port), functools.partial(_Handler, directory=str(root)))
+def make_server(root: Path, *, port: int = PORT) -> http.server.HTTPServer:
+    """Serves the episodes in `root` and saves the notes to notes.json in each episode directory."""
+    return http.server.HTTPServer((HOST, port), functools.partial(_Handler, directory=str(root)))
 
 
 def _episode_names(root: Path) -> set[str]:
@@ -140,9 +138,9 @@ def _verdict_cell(episode: dict[str, Any]) -> str:
     verdict = episode.get("verdict")
     if verdict is None:
         return "no verdict"
-    css_class = "ok" if verdict["success"] else "fail"
+    outcome = "success" if verdict["success"] else "failure"
     flags = [name for name in ("contact", "intervention") if verdict[name]]
-    return f'<span class="{css_class}">{"success" if verdict["success"] else "failure"}</span> {" ".join(flags)}'
+    return f'<span class="{outcome}">{outcome}</span> {" ".join(flags)}'
 
 
 def _note_area(notes: dict[str, str], key: str) -> str:
@@ -199,7 +197,7 @@ def _step_row(step: dict[str, Any], notes: dict[str, str]) -> str:
         lines.append(f"{decision['latency_ms']} ms · {decision['input_tokens']}/{decision['output_tokens']} tokens")
     lines.append(f"outcome {step['outcome']} · stop {step['stop_reason']}")
     if step["error"] is not None:
-        lines.append(f'<span class="fail">{html.escape(step["error"])}</span>')
+        lines.append(f'<span class="failure">{html.escape(step["error"])}</span>')
     frame = html.escape(step["frame"])
     return (
         f'<tr><td><a href="{frame}"><img src="{frame}"></a></td>'
@@ -208,13 +206,10 @@ def _step_row(step: dict[str, Any], notes: dict[str, str]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Show the recorded episodes in the browser and save notes to them.")
-    parser.add_argument("--runs", type=Path, default=RUNS_DIR, help="episode directory root")
-    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    with make_server(args.runs) as server:
+    with make_server(RUNS_DIR) as server:
         url = f"http://{HOST}:{server.server_port}/"
-        logger.info("Serve %s at %s, press Ctrl+C to stop", args.runs, url)
+        logger.info("Serve %s at %s, press Ctrl+C to stop", RUNS_DIR, url)
         webbrowser.open(url)
         try:
             server.serve_forever()
